@@ -1,0 +1,35 @@
+# Claude Code local config
+.claude/
+
+# Packaged extension builds
+*.zip
+*.crx
+*.pem
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# Linux
+*~
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+
+# Node (if you ever add a build step)
+node_modules/
+.env
+.env.local
+.env*.local
+npm-debug.log*
+spec.md
