@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BookmarkBrain</title>
+    <link rel="stylesheet" href="./sidepanel.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar glass">
+        <div class="brand">
+          <img class="brand-mark" src="../bb.png" alt="BookmarkBrain" />
+          <div>
+            <h1>BookmarkBrain</h1>
+            <p class="sub">Bookmark intelligence for X</p>
+          </div>
+        </div>
+        <button id="open-options" class="secondary">Settings</button>
+      </header>
+
+      <section class="glass card">
+        <div class="section-head">
+          <h2>Sync</h2>
+          <span id="provider-pill" class="pill">provider</span>
+        </div>
+        <div class="metrics">
+          <article class="metric">
+            <p>Indexed</p>
+            <strong id="bookmark-count-number">0</strong>
+          </article>
+          <article class="metric">
+            <p>Status</p>
+            <strong id="sync-state-word">Idle</strong>
+          </article>
+        </div>
+        <p id="sync-status" class="sync-line" role="status" aria-live="polite">Checking status...</p>
+        <p id="embedding-progress" class="sync-line">Vectors: 0/0</p>
+        <div class="row">
+          <button id="start-sync">Start Sync</button>
+          <button id="stop-sync" class="secondary">Stop</button>
+          <button id="refresh-state" class="ghost">Refresh</button>
+          <button id="clear-data" class="danger">Clear Data</button>
+        </div>
+      </section>
+
+      <section class="glass card chat">
+        <div class="section-head">
+          <h2>Ask</h2>
+          <span id="chat-mode" class="pill subtle">standby</span>
+        </div>
+
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <form id="chat-form">
+          <label class="sr-only" for="query-input">Ask BookmarkBrain</label>
+          <textarea
+            id="query-input"
+            placeholder="e.g. What did I bookmark about AI agents?"
+            rows="3"
+            required
+          ></textarea>
+          <div class="quality-controls">
+            <label class="control">
+              <span>Style</span>
+              <select id="answer-style">
+                <option value="brief">Brief</option>
+                <option value="balanced">Balanced</option>
+                <option value="deep-dive">Deep-dive</option>
+              </select>
+            </label>
+            <label class="control">
+              <span>Max citations</span>
+              <input id="max-citations" type="number" min="1" max="12" step="1" value="5" />
+            </label>
+          </div>
+          <button id="send-query" class="send-btn" type="submit">Ask BookmarkBrain</button>
+          <div class="prompt-toolbar">
+            <input
+              id="new-prompt-input"
+              class="prompt-input"
+              type="text"
+              maxlength="140"
+              placeholder="Add a saved prompt..."
+            />
+            <button id="add-prompt" class="ghost" type="button">Add</button>
+          </div>
+          <div id="quick-prompts" class="quick-prompts"></div>
+        </form>
+
+        <div id="citations" class="citations"></div>
+        <div class="export-actions">
+          <button id="export-markdown" class="ghost" type="button">Export Markdown</button>
+          <button id="export-csv" class="ghost" type="button">Export CSV</button>
+          <button id="share-answer" class="secondary" type="button">Share Answer</button>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="./sidepanel.js"></script>
+  </body>
+</html>

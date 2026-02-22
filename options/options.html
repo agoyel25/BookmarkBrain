@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BookmarkBrain Settings</title>
+    <link rel="stylesheet" href="./options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <header class="head">
+        <h1>BookmarkBrain Settings</h1>
+        <p class="muted">Provider routing, model choices, and local data controls.</p>
+      </header>
+
+      <section class="card">
+        <label for="provider">Provider</label>
+        <select id="provider">
+          <option value="openrouter">OpenRouter</option>
+          <option value="openai">OpenAI (direct)</option>
+        </select>
+      </section>
+
+      <section class="card">
+        <label class="toggle" for="auto-sync-enabled">
+          <input id="auto-sync-enabled" type="checkbox" />
+          <span>Enable auto-sync when bookmarks tab is active</span>
+        </label>
+        <label class="toggle" for="auto-scroll-during-sync">
+          <input id="auto-scroll-during-sync" type="checkbox" />
+          <span>Auto-scroll while syncing</span>
+        </label>
+        <label for="scroll-speed">Auto-scroll speed</label>
+        <select id="scroll-speed">
+          <option value="slow">Slow — more time for content to load</option>
+          <option value="normal">Normal (default)</option>
+          <option value="fast">Fast — scroll as quickly as possible</option>
+        </select>
+        <label class="toggle" for="embedding-search-enabled">
+          <input id="embedding-search-enabled" type="checkbox" />
+          <span>Use semantic search with embeddings</span>
+        </label>
+        <p class="muted">
+          BookmarkBrain will auto-start and resume scraping whenever your active tab is
+          <code>x.com/i/bookmarks</code>.
+        </p>
+        <p class="muted">
+          Semantic mode embeds bookmarks using your selected provider and API key. Disable to use
+          keyword-only retrieval.
+        </p>
+      </section>
+
+      <section class="card">
+        <h2>Answer Defaults</h2>
+        <label for="answer-style">Response style</label>
+        <select id="answer-style">
+          <option value="brief">Brief</option>
+          <option value="balanced">Balanced</option>
+          <option value="deep-dive">Deep-dive</option>
+        </select>
+        <label for="max-citations">Max citations</label>
+        <input id="max-citations" type="number" min="1" max="12" step="1" />
+      </section>
+
+      <section class="card" id="openrouter-settings">
+        <h2>OpenRouter</h2>
+        <label for="openrouter-api-key">API Key</label>
+        <input id="openrouter-api-key" type="password" placeholder="sk-or-..." />
+        <button id="clear-openrouter-key" class="danger" type="button">Clear OpenRouter Key</button>
+        <p id="openrouter-key-status" class="muted">No key saved.</p>
+
+        <label for="openrouter-chat-model">Chat Model</label>
+        <div class="model-input-row">
+          <input
+            id="openrouter-chat-model"
+            type="text"
+            placeholder="openai/gpt-4o-mini"
+            list="openrouter-chat-model-list"
+            autocomplete="off"
+          />
+          <button id="save-openrouter-fav" type="button" class="secondary fav-btn" title="Save to favourites">★</button>
+        </div>
+        <datalist id="openrouter-chat-model-list"></datalist>
+        <p id="openrouter-models-status" class="muted"></p>
+        <div id="openrouter-fav-models" class="fav-chips"></div>
+
+        <label for="openrouter-embedding-model">Embedding Model</label>
+        <input
+          id="openrouter-embedding-model"
+          type="text"
+          placeholder="google/gemini-embedding-001"
+          list="openrouter-embedding-model-list"
+          autocomplete="off"
+        />
+        <datalist id="openrouter-embedding-model-list">
+          <option value="google/gemini-embedding-001">Google — Gemini Embedding 001</option>
+          <option value="openai/text-embedding-3-small">OpenAI — Text Embedding 3 Small</option>
+          <option value="openai/text-embedding-3-large">OpenAI — Text Embedding 3 Large</option>
+          <option value="openai/text-embedding-ada-002">OpenAI — Ada 002 (legacy)</option>
+        </datalist>
+      </section>
+
+      <section class="card" id="openai-settings">
+        <h2>OpenAI</h2>
+        <label for="openai-api-key">API Key</label>
+        <input id="openai-api-key" type="password" placeholder="sk-..." />
+        <button id="clear-openai-key" class="danger" type="button">Clear OpenAI Key</button>
+        <p id="openai-key-status" class="muted">No key saved.</p>
+
+        <label for="openai-chat-model">Chat Model</label>
+        <div class="model-input-row">
+          <input id="openai-chat-model" type="text" placeholder="gpt-4o-mini" />
+          <button id="save-openai-fav" type="button" class="secondary fav-btn" title="Save to favourites">★</button>
+        </div>
+        <div id="openai-fav-models" class="fav-chips"></div>
+
+        <label for="openai-embedding-model">Embedding Model</label>
+        <input id="openai-embedding-model" type="text" placeholder="text-embedding-3-small" />
+      </section>
+
+      <section class="card actions">
+        <button id="save-settings">Save Settings</button>
+        <button id="clear-data" class="danger">Clear Indexed Data</button>
+        <p id="status" class="muted" role="status" aria-live="polite"></p>
+      </section>
+    </main>
+    <script type="module" src="./options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,46 @@
+{
+  "manifest_version": 3,
+  "name": "BookmarkBrain",
+  "version": "0.1.0",
+  "description": "Chat with your X/Twitter bookmarks using AI.",
+  "permissions": ["storage", "unlimitedStorage", "activeTab", "sidePanel", "scripting"],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://twitter.com/*",
+    "https://openrouter.ai/*",
+    "https://api.openai.com/*"
+  ],
+  "icons": {
+    "16": "bb.png",
+    "32": "bb.png",
+    "48": "bb.png",
+    "128": "bb.png"
+  },
+  "action": {
+    "default_title": "BookmarkBrain",
+    "default_icon": {
+      "16": "bb.png",
+      "32": "bb.png",
+      "48": "bb.png",
+      "128": "bb.png"
+    }
+  },
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://x.com/i/bookmarks*",
+        "https://twitter.com/i/bookmarks*"
+      ],
+      "js": ["content/bookmarks-scraper.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel/sidepanel.html"
+  },
+  "options_page": "options/options.html"
+}
