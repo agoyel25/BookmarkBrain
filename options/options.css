@@ -1,11 +1,12 @@
-:root {
+:root,
+body.theme-emerald-dark {
   --bg-0: #18181b;
   --bg-1: #1f1f23;
   --surface: #27272a;
   --surface-2: #2c2c30;
-  --emerald: #10b981;
-  --emerald-dim: rgba(16, 185, 129, 0.1);
-  --emerald-hover: rgba(16, 185, 129, 0.18);
+  --accent: #10b981;
+  --accent-dim: rgba(16, 185, 129, 0.1);
+  --accent-hover: rgba(16, 185, 129, 0.18);
   --border: #3f3f46;
   --border-subtle: #2e2e33;
   --text: #fafafa;
@@ -13,6 +14,40 @@
   --muted: #71717a;
   --ok: #10b981;
   --danger: #ef4444;
+}
+
+body.theme-amber-dark {
+  --bg-0: #1a1a1a;
+  --bg-1: #222222;
+  --surface: #2a2a2a;
+  --surface-2: #303030;
+  --accent: #e8a838;
+  --accent-dim: rgba(232, 168, 56, 0.1);
+  --accent-hover: rgba(232, 168, 56, 0.18);
+  --border: #404040;
+  --border-subtle: #333333;
+  --text: #f5f5f4;
+  --text-secondary: #a8a29e;
+  --muted: #78716c;
+  --ok: #10b981;
+  --danger: #ef4444;
+}
+
+body.theme-light {
+  --bg-0: #ffffff;
+  --bg-1: #f4f4f5;
+  --surface: #ffffff;
+  --surface-2: #fafafa;
+  --accent: #059669;
+  --accent-dim: rgba(5, 150, 105, 0.08);
+  --accent-hover: rgba(5, 150, 105, 0.14);
+  --border: #e4e4e7;
+  --border-subtle: #f0f0f2;
+  --text: #18181b;
+  --text-secondary: #52525b;
+  --muted: #a1a1aa;
+  --ok: #059669;
+  --danger: #dc2626;
 }
 
 * {
@@ -24,20 +59,22 @@ body {
   min-height: 100vh;
   color: var(--text);
   font-family: "Inter", -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
   background: var(--bg-0);
 }
 
 .container {
-  max-width: 860px;
+  max-width: 640px;
   margin: 0 auto;
-  padding: 22px 16px 32px;
+  padding: 24px 16px 40px;
   display: grid;
   gap: 12px;
 }
 
 .head h1 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   font-weight: 600;
   color: var(--text);
 }
@@ -48,26 +85,27 @@ body {
 
 .muted {
   color: var(--text-secondary);
+  font-size: 0.93rem;
 }
 
 .card {
   border-radius: 10px;
   border: 1px solid var(--border);
   background: var(--surface);
-  padding: 12px;
+  padding: 14px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 h2 {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 600;
   color: var(--text);
 }
 
 label {
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 500;
   color: var(--text);
 }
@@ -83,7 +121,7 @@ label {
   height: 18px;
   min-height: unset;
   margin: 0;
-  accent-color: var(--emerald);
+  accent-color: var(--accent);
 }
 
 code {
@@ -92,7 +130,7 @@ code {
   border-radius: 4px;
   padding: 1px 6px;
   color: var(--text);
-  font-size: 0.85em;
+  font-size: 0.88em;
 }
 
 input,
@@ -105,6 +143,7 @@ select {
   color: var(--text);
   padding: 10px;
   font: inherit;
+  font-size: 0.95rem;
   transition: border-color 120ms ease;
 }
 
@@ -114,7 +153,7 @@ input::placeholder {
 
 input:focus,
 select:focus {
-  border-color: var(--emerald);
+  border-color: var(--accent);
   outline: none;
 }
 
@@ -130,6 +169,7 @@ select:focus {
   border-radius: 8px;
   padding: 10px 12px;
   font: inherit;
+  font-size: 0.95rem;
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
@@ -150,21 +190,24 @@ button {
   min-height: 44px;
   border: 0;
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   font: inherit;
+  font-size: 0.95rem;
   font-weight: 600;
-  background: var(--emerald);
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
   transition: background 120ms ease;
 }
 
 button:hover {
-  background: #059669;
+  background: var(--accent);
+  filter: brightness(0.85);
 }
 
 button:active {
-  background: #047857;
+  background: var(--accent);
+  filter: brightness(0.75);
 }
 
 button:disabled {
@@ -179,7 +222,7 @@ button.secondary {
 }
 
 button.secondary:hover {
-  background: #3f3f46;
+  background: var(--border);
 }
 
 button.ghost {
@@ -193,19 +236,25 @@ button.ghost:hover {
 }
 
 button.danger {
-  color: #fff;
-  background: #dc2626;
+  color: var(--danger);
+  background: transparent;
+  border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
 button.danger:hover {
-  background: #b91c1c;
+  background: rgba(239, 68, 68, 0.08);
+}
+
+button.danger:disabled {
+  color: var(--muted);
+  border-color: var(--border-subtle);
 }
 
 #status {
   margin: 0;
   width: 100%;
   color: var(--text-secondary);
-  font-size: 0.88rem;
+  font-size: 0.93rem;
 }
 
 .model-input-row {
@@ -223,7 +272,7 @@ button.danger:hover {
   min-width: 52px;
   padding: 10px;
   flex-shrink: 0;
-  font-size: 1rem;
+  font-size: 1.1rem;
 }
 
 .fav-chips {
@@ -236,8 +285,8 @@ button.danger:hover {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  background: var(--emerald-dim);
+  border: 1px solid var(--accent-dim);
+  background: var(--accent-dim);
   overflow: hidden;
 }
 
@@ -245,10 +294,10 @@ button.danger:hover {
   min-height: unset;
   border: 0;
   background: transparent;
-  color: var(--emerald);
-  font-size: 0.78rem;
+  color: var(--accent);
+  font-size: 0.88rem;
   font-weight: 500;
-  padding: 5px 8px 5px 12px;
+  padding: 6px 8px 6px 12px;
   max-width: 210px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -264,11 +313,11 @@ button.danger:hover {
 .fav-chip-remove {
   min-height: unset;
   border: 0;
-  border-left: 1px solid rgba(16, 185, 129, 0.15);
+  border-left: 1px solid var(--accent-dim);
   background: transparent;
   color: var(--muted);
-  font-size: 0.84rem;
-  padding: 5px 10px;
+  font-size: 0.93rem;
+  padding: 6px 10px;
   cursor: pointer;
   line-height: 1;
 }
@@ -281,7 +330,7 @@ button.danger:hover {
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--emerald);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 

@@ -8,6 +8,7 @@ import {
 } from "../shared/settings.js";
 
 const elements = {
+  theme: document.getElementById("theme"),
   provider: document.getElementById("provider"),
   autoSyncEnabled: document.getElementById("auto-sync-enabled"),
   autoScrollDuringSync: document.getElementById("auto-scroll-during-sync"),
@@ -44,6 +45,25 @@ let favoriteOpenaiModels = [];
 
 elements.provider.addEventListener("change", () => {
   updateProviderVisibility(elements.provider.value);
+});
+
+elements.theme.addEventListener("change", () => {
+  applyTheme(elements.theme.value);
+  chrome.storage.local.set({ theme: elements.theme.value });
+});
+
+function applyTheme(theme) {
+  document.body.classList.remove("theme-emerald-dark", "theme-amber-dark", "theme-light");
+  if (theme && theme !== "emerald-dark") {
+    document.body.classList.add(`theme-${theme}`);
+  }
+}
+
+chrome.storage.local.get("theme", ({ theme }) => {
+  if (theme) {
+    elements.theme.value = theme;
+    applyTheme(theme);
+  }
 });
 
 elements.saveOpenrouterFav.addEventListener("click", async () => {
@@ -227,11 +247,15 @@ function updateKeyStatus(hasKey, provider) {
     elements.openrouterKeyStatus.textContent = hasKey
       ? "API key saved. Leave blank to keep current key."
       : "No API key saved.";
+    elements.clearOpenrouterKey.disabled = !hasKey;
+    elements.clearOpenrouterKey.textContent = hasKey ? "Clear OpenRouter Key" : "No key to clear";
     return;
   }
   elements.openaiKeyStatus.textContent = hasKey
     ? "API key saved. Leave blank to keep current key."
     : "No API key saved.";
+  elements.clearOpenaiKey.disabled = !hasKey;
+  elements.clearOpenaiKey.textContent = hasKey ? "Clear OpenAI Key" : "No key to clear";
 }
 
 async function clearProviderKey(provider) {

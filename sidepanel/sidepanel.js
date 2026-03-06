@@ -35,12 +35,16 @@ const elements = {
   exportMarkdown: document.getElementById("export-markdown"),
   exportCsv: document.getElementById("export-csv"),
   shareAnswer: document.getElementById("share-answer"),
-  clearData: document.getElementById("clear-data")
+  clearData: document.getElementById("clear-data"),
+  fontSmall: document.getElementById("font-small"),
+  fontMedium: document.getElementById("font-medium"),
+  fontLarge: document.getElementById("font-large")
 };
 
 let lastExchange = null;
 let savedPrompts = [...DEFAULT_PROMPTS];
 let isHydratingControls = false;
+let chatHistory = [];
 
 elements.startSync.addEventListener("click", async () => {
   setStatus("Starting sync...");
@@ -79,11 +83,49 @@ elements.clearData.addEventListener("click", async () => {
     return;
   }
   setStatus("All synced data cleared.");
+  chatHistory = [];
+  lastExchange = null;
+  elements.messages.innerHTML = "";
+  clearCitations();
+  chrome.storage.local.remove(["chatHistory", "lastExchange"]);
+  updateExportActions();
+  renderEmptyState();
   await refreshState();
 });
 
 elements.openOptions.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
+});
+
+function setFontSize(size) {
+  document.body.classList.remove("font-small", "font-large");
+  if (size === "small") document.body.classList.add("font-small");
+  if (size === "large") document.body.classList.add("font-large");
+  elements.fontSmall.classList.toggle("active", size === "small");
+  elements.fontMedium.classList.toggle("active", size === "medium");
+  elements.fontLarge.classList.toggle("active", size === "large");
+  chrome.storage.local.set({ fontSize: size });
+}
+
+elements.fontSmall.addEventListener("click", () => setFontSize("small"));
+elements.fontMedium.addEventListener("click", () => setFontSize("medium"));
+elements.fontLarge.addEventListener("click", () => setFontSize("large"));
+
+chrome.storage.local.get(["fontSize", "theme"], ({ fontSize, theme }) => {
+  if (fontSize) setFontSize(fontSize);
+  if (theme && theme !== "emerald-dark") {
+    document.body.classList.add(`theme-${theme}`);
+  }
+});
+
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.theme) {
+    document.body.classList.remove("theme-emerald-dark", "theme-amber-dark", "theme-light");
+    const newTheme = changes.theme.newValue;
+    if (newTheme && newTheme !== "emerald-dark") {
+      document.body.classList.add(`theme-${newTheme}`);
+    }
+  }
 });
 
 elements.answerStyle.addEventListener("change", async () => {
@@ -226,6 +268,7 @@ elements.chatForm.addEventListener("submit", async (event) => {
     maxCitations: normalizeMaxCitations(elements.maxCitations.value)
   };
   updateExportActions();
+  saveChatHistory();
 });
 
 elements.exportMarkdown.addEventListener("click", () => {
@@ -389,6 +432,48 @@ function appendMessage(role, text, options = {}) {
   node.appendChild(contentNode);
   elements.messages.appendChild(node);
   elements.messages.scrollTop = elements.messages.scrollHeight;
+
+  if (!options.skipHistory) {
+    chatHistory.push({
+      role,
+      text,
+      formatted: Boolean(options.formatted),
+      citations: options.citations || []
+    });
+    saveChatHistory();
+  }
+}
+
+function saveChatHistory() {
+  const trimmed = chatHistory.slice(-50);
+  chrome.storage.local.set({ chatHistory: trimmed, lastExchange });
+}
+
+async function restoreChatHistory() {
+  const { chatHistory: stored, lastExchange: storedExchange } =
+    await chrome.storage.local.get(["chatHistory", "lastExchange"]);
+
+  if (!Array.isArray(stored) || stored.length === 0) {
+    return false;
+  }
+
+  for (const msg of stored) {
+    appendMessage(msg.role, msg.text, {
+      formatted: msg.formatted,
+      citations: msg.citations,
+      skipHistory: true
+    });
+  }
+  chatHistory = stored;
+
+  if (storedExchange) {
+    lastExchange = storedExchange;
+    renderCitations(lastExchange.citations || []);
+    updateExportActions();
+    setChatMode(lastExchange.mode || "standby");
+  }
+
+  return true;
 }
 
 function renderMarkdownLite(container, text, citationMap = new Map()) {
@@ -818,6 +903,8 @@ function sendRuntimeMessage(message) {
 }
 
 updateExportActions();
-renderEmptyState();
+restoreChatHistory().then((restored) => {
+  if (!restored) renderEmptyState();
+});
 renderSavedPrompts();
 refreshState();
