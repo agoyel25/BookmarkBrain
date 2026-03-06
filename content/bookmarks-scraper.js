@@ -5,9 +5,9 @@ if (window.__bookmarkBrainContentLoaded) {
 
   (function bookmarkBrainContentScript() {
     const SCROLL_SPEEDS = {
-      slow:   { interval: 2400, amount: 380 },
+      slow: { interval: 2400, amount: 380 },
       normal: { interval: 1700, amount: 560 },
-      fast:   { interval:  900, amount: 920 }
+      fast: { interval: 900, amount: 920 }
     };
 
     const state = {
@@ -48,20 +48,30 @@ if (window.__bookmarkBrainContentLoaded) {
       stopSync();
     });
 
-    function isBookmarksPage() {
+    function isXBookmarksPage() {
       return (
         location.pathname.startsWith("/i/bookmarks") &&
         (location.hostname === "x.com" || location.hostname === "twitter.com")
       );
     }
 
+    function isRedditSavedPage() {
+      if (location.hostname !== "www.reddit.com" && location.hostname !== "old.reddit.com") {
+        return false;
+      }
+      return /^\/(?:user|u)\/[^/]+\/saved\/?/i.test(location.pathname);
+    }
+
+    function isSupportedSavedPage() {
+      return isXBookmarksPage() || isRedditSavedPage();
+    }
+
     function startSync(options = {}) {
-      if (!isBookmarksPage()) {
+      if (!isSupportedSavedPage()) {
         return;
       }
 
-      const shouldAutoScroll = Boolean(options.autoScrollEnabled);
-      state.autoScrollEnabled = shouldAutoScroll;
+      state.autoScrollEnabled = Boolean(options.autoScrollEnabled);
       state.scrollSpeed = options.scrollSpeed || "normal";
 
       if (state.isSyncing) {
@@ -121,7 +131,7 @@ if (window.__bookmarkBrainContentLoaded) {
       }
 
       state.observer = new MutationObserver(() => {
-        if (state.isSyncing && isBookmarksPage()) {
+        if (state.isSyncing && isSupportedSavedPage()) {
           collectFromPage();
         }
       });
@@ -138,7 +148,7 @@ if (window.__bookmarkBrainContentLoaded) {
       }
 
       state.scanInterval = setInterval(() => {
-        if (!state.isSyncing || !isBookmarksPage()) {
+        if (!state.isSyncing || !isSupportedSavedPage()) {
           return;
         }
         collectFromPage();
@@ -160,7 +170,7 @@ if (window.__bookmarkBrainContentLoaded) {
           return;
         }
 
-        if (!isBookmarksPage()) {
+        if (!isSupportedSavedPage()) {
           stopSync();
           return;
         }
@@ -175,7 +185,7 @@ if (window.__bookmarkBrainContentLoaded) {
       }
 
       state.heartbeatInterval = setInterval(() => {
-        if (!state.isSyncing || !isBookmarksPage()) {
+        if (!state.isSyncing || !isSupportedSavedPage()) {
           return;
         }
 
@@ -197,7 +207,7 @@ if (window.__bookmarkBrainContentLoaded) {
       state.stagnantTicks = 0;
 
       state.autoScrollInterval = setInterval(() => {
-        if (!state.isSyncing || !isBookmarksPage()) {
+        if (!state.isSyncing || !isSupportedSavedPage()) {
           return;
         }
 
@@ -239,7 +249,7 @@ if (window.__bookmarkBrainContentLoaded) {
       return document.scrollingElement || document.documentElement;
     }
 
-    function getCandidateArticles() {
+    function getCandidateXArticles() {
       const primary = Array.from(document.querySelectorAll('article[data-testid="tweet"]'));
       if (primary.length > 0) {
         return primary;
@@ -257,10 +267,45 @@ if (window.__bookmarkBrainContentLoaded) {
       return Array.from(fallback);
     }
 
+    function getCandidateRedditItems() {
+      const items = new Set();
+      const selectors = ["shreddit-post", "shreddit-comment", "div.thing", "article"];
+
+      for (const selector of selectors) {
+        const found = document.querySelectorAll(selector);
+        for (const element of found) {
+          items.add(element);
+        }
+      }
+
+      if (items.size > 0) {
+        return Array.from(items);
+      }
+
+      const anchors = document.querySelectorAll('a[href*="/comments/"]');
+      for (const anchor of anchors) {
+        const container = anchor.closest("shreddit-post, shreddit-comment, div.thing, article");
+        if (container) {
+          items.add(container);
+        }
+      }
+      return Array.from(items);
+    }
+
+    function getCandidateItems() {
+      if (isXBookmarksPage()) {
+        return getCandidateXArticles();
+      }
+      if (isRedditSavedPage()) {
+        return getCandidateRedditItems();
+      }
+      return [];
+    }
+
     function collectFromPage() {
-      const articles = getCandidateArticles();
-      for (const article of articles) {
-        const tweet = extractTweet(article);
+      const items = getCandidateItems();
+      for (const item of items) {
+        const tweet = extractSavedItem(item);
         if (!tweet?.tweet_id || state.seenTweetIds.has(tweet.tweet_id)) {
           continue;
         }
@@ -277,7 +322,17 @@ if (window.__bookmarkBrainContentLoaded) {
       scheduleFlush();
     }
 
-    function extractTweet(article) {
+    function extractSavedItem(item) {
+      if (isXBookmarksPage()) {
+        return extractFromX(item);
+      }
+      if (isRedditSavedPage()) {
+        return extractFromReddit(item);
+      }
+      return null;
+    }
+
+    function extractFromX(article) {
       const tweetUrl = findPrimaryStatusUrl(article);
       if (!tweetUrl) {
         return null;
@@ -377,6 +432,194 @@ if (window.__bookmarkBrainContentLoaded) {
         .filter(Boolean);
 
       return candidates.find((entry) => !entry.startsWith("@") && entry !== "·") || "";
+    }
+
+    function extractFromReddit(item) {
+      const permalink = findPrimaryRedditPermalink(item);
+      const parsed = parseRedditPermalink(permalink);
+      if (!parsed?.postId || !parsed?.canonicalUrl) {
+        return null;
+      }
+
+      const idParts = [parsed.postId, parsed.commentId].filter(Boolean).join("_");
+      const itemId = `reddit_${parsed.subreddit || "saved"}_${idParts}`;
+      const authorHandle = extractRedditAuthorHandle(item);
+      const timeElement = item.querySelector("time");
+
+      return {
+        tweet_id: itemId,
+        tweet_url: parsed.canonicalUrl,
+        author_handle: authorHandle,
+        author_name: authorHandle ? `u/${authorHandle}` : "",
+        tweet_text: extractRedditText(item),
+        created_at: timeElement?.getAttribute("datetime") || null,
+        captured_at: new Date().toISOString()
+      };
+    }
+
+    function findPrimaryRedditPermalink(item) {
+      const directHref =
+        item.getAttribute("permalink") ||
+        item.getAttribute("content-href") ||
+        item.getAttribute("href") ||
+        "";
+      const direct = normalizeRedditPermalink(directHref);
+      if (direct) {
+        return direct;
+      }
+
+      const anchors = Array.from(item.querySelectorAll('a[href*="/comments/"]'));
+      if (!anchors.length) {
+        return null;
+      }
+
+      const ranked = anchors
+        .map((anchor) => normalizeRedditPermalink(anchor.getAttribute("href") || ""))
+        .filter(Boolean)
+        .map((url) => {
+          const parsed = parseRedditPermalink(url);
+          const score = parsed?.commentId ? 2 : 1;
+          return { url, score };
+        })
+        .sort((a, b) => b.score - a.score);
+
+      return ranked[0]?.url || null;
+    }
+
+    function normalizeRedditPermalink(rawUrl) {
+      if (!rawUrl) {
+        return null;
+      }
+
+      try {
+        const absolute = new URL(rawUrl, location.origin);
+        if (
+          absolute.hostname !== "www.reddit.com" &&
+          absolute.hostname !== "old.reddit.com" &&
+          absolute.hostname !== "reddit.com"
+        ) {
+          return null;
+        }
+
+        const segments = absolute.pathname.split("/").filter(Boolean);
+        if (segments.length < 4 || segments[0] !== "r" || segments[2] !== "comments") {
+          return null;
+        }
+
+        const subreddit = segments[1];
+        const postId = segments[3];
+        if (!subreddit || !postId) {
+          return null;
+        }
+
+        const rawSlug = segments[4] || "_";
+        let slug = rawSlug;
+        let commentId = segments[5] || "";
+        if (!commentId && rawSlug && /^[a-z0-9]+$/i.test(rawSlug) && rawSlug.length <= 10) {
+          commentId = rawSlug;
+          slug = "_";
+        }
+
+        const canonicalPath = commentId
+          ? `/r/${subreddit}/comments/${postId}/${slug}/${commentId}`
+          : `/r/${subreddit}/comments/${postId}/${slug}`;
+
+        return `https://www.reddit.com${canonicalPath}`;
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function parseRedditPermalink(url) {
+      if (!url) {
+        return null;
+      }
+
+      try {
+        const parsed = new URL(url);
+        const segments = parsed.pathname.split("/").filter(Boolean);
+        if (segments.length < 4 || segments[0] !== "r" || segments[2] !== "comments") {
+          return null;
+        }
+
+        const rawSlug = segments[4] || "";
+        const commentId =
+          segments[5] || (/^[a-z0-9]+$/i.test(rawSlug) && rawSlug.length <= 10 ? rawSlug : "");
+
+        return {
+          subreddit: segments[1] || "",
+          postId: segments[3] || "",
+          commentId,
+          canonicalUrl: `${parsed.origin}${parsed.pathname}`
+        };
+      } catch (_error) {
+        return null;
+      }
+    }
+
+    function extractRedditAuthorHandle(item) {
+      const authorLink = item.querySelector('a[href*="/user/"], a[href*="/u/"]');
+      const href = authorLink?.getAttribute("href") || "";
+      const match = href.match(/\/(?:user|u)\/([^/?#]+)/i);
+      if (match?.[1]) {
+        return match[1];
+      }
+
+      const textMatch = String(item.textContent || "").match(/\bu\/([A-Za-z0-9_-]{3,24})\b/);
+      return textMatch?.[1] || "";
+    }
+
+    function extractRedditText(item) {
+      const candidates = [];
+      const selectors = [
+        "h1",
+        "h2",
+        "h3",
+        '[slot="title"]',
+        "a.title",
+        '[slot="text-body"]',
+        '[data-click-id="body"]',
+        '[data-testid="comment"]',
+        ".usertext-body",
+        ".md",
+        "p"
+      ];
+
+      for (const selector of selectors) {
+        const nodes = item.querySelectorAll(selector);
+        for (const node of nodes) {
+          const text = cleanInlineText(node.textContent || "");
+          if (!text || candidates.includes(text)) {
+            continue;
+          }
+          candidates.push(text);
+          if (candidates.length >= 10) {
+            break;
+          }
+        }
+        if (candidates.length >= 10) {
+          break;
+        }
+      }
+
+      const filtered = candidates.filter((entry) => {
+        if (entry.length < 2) {
+          return false;
+        }
+        return !/^(share|save|hide|report|reply|award|copy link)$/i.test(entry);
+      });
+
+      if (filtered.length > 0) {
+        return filtered.join("\n");
+      }
+
+      return cleanInlineText(item.textContent || "");
+    }
+
+    function cleanInlineText(input) {
+      return String(input || "")
+        .replace(/\s+/g, " ")
+        .trim();
     }
 
     function scheduleFlush() {

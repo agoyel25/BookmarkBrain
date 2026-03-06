@@ -1,22 +1,23 @@
 # BookmarkBrain
 
-**Chat with your X/Twitter bookmarks using AI.**
+**Chat with your X/Twitter bookmarks and Reddit saved posts using AI.**
 
-Your Twitter bookmarks are a graveyard — no search, no recall, no value. BookmarkBrain turns them into a second brain you can actually talk to. Sync your bookmarks, ask natural-language questions, and get cited answers grounded in what you actually saved.
+Your saved content is a graveyard — no search, no recall, no value. BookmarkBrain turns it into a second brain you can actually talk to. Sync your saved items, ask natural-language questions, and get cited answers grounded in what you actually saved.
 
-> Free, open source, privacy-first. Your bookmarks never leave your browser. Bring your own API key.
+> Free, open source, privacy-first. Data is stored locally, and AI requests are sent directly to your selected provider using your API key.
 
 ---
 
 ## Features
 
 - **Semantic search** — embeddings-powered retrieval finds conceptually relevant bookmarks even when exact words don't match
-- **Cited answers** — every response includes numbered citations linked back to the original tweet
-- **Auto-scroll sync** — automatically scrolls and indexes your entire bookmarks page hands-free
+- **Cited answers** — every response includes numbered citations linked back to the original source
+- **Auto-scroll sync** — automatically scrolls and indexes your saved-items pages hands-free
 - **Dual AI provider** — works with [OpenRouter](https://openrouter.ai) (400+ models) or direct OpenAI
+- **Insight mode toggle** — optionally force every answer to include **Top 3 Opportunities** and **Top 3 Risks**
 - **Export** — download any answer as Markdown or CSV
 - **Saved prompts** — save your most-used queries as one-click chips
-- **Privacy-first** — all data stored locally in your browser, no server, no account
+- **Privacy-first** — data is stored locally; AI requests go directly to OpenRouter/OpenAI with your API key
 - **BYOK** — bring your own API key, pay only for what you use
 
 ---
@@ -27,15 +28,15 @@ Your Twitter bookmarks are a graveyard — no search, no recall, no value. Bookm
 2. Open `chrome://extensions` in Chrome
 3. Enable **Developer mode** (top right toggle)
 4. Click **Load unpacked**
-5. Select the `twitter-extension` folder
+5. Select this project folder (the one containing `manifest.json`)
 
 ---
 
 ## Quick Start
 
-1. Open [x.com/i/bookmarks](https://x.com/i/bookmarks) in Chrome
+1. Open [x.com/i/bookmarks](https://x.com/i/bookmarks) or `https://www.reddit.com/user/<you>/saved` in Chrome
 2. Click the **BookmarkBrain** extension icon — the side panel opens
-3. Click **Start Sync** and scroll down your bookmarks page (or enable auto-scroll in Settings)
+3. Click **Start Sync** and scroll down your saved page (or enable auto-scroll in Settings)
 4. Once indexed, type any question and click **Ask BookmarkBrain**
 
 ---
@@ -47,11 +48,12 @@ Open the side panel and click **Settings**, or right-click the extension icon �
 | Setting | Description |
 |---|---|
 | Provider | `openrouter` (default, 400+ models) or `openai` (direct) |
-| Auto-sync | Automatically start syncing when you open the bookmarks tab |
-| Auto-scroll | Scroll the bookmarks page automatically during sync |
+| Auto-sync | Automatically start syncing when you open a supported saved-items tab |
+| Auto-scroll | Scroll the active saved-items page automatically during sync |
 | Semantic search | Use embedding-based retrieval (requires API key). Falls back to keyword search if disabled |
 | Response style | Brief / Balanced / Deep-dive |
-| Max citations | How many source tweets to include per answer (1–12) |
+| Max citations | How many sources to include per answer (1–12, default: `12`) |
+| Opportunities/Risks toggle | Optionally include **Top 3 Opportunities** and **Top 3 Risks** in every answer |
 
 ### API Key Setup
 
@@ -71,25 +73,27 @@ Open the side panel and click **Settings**, or right-click the extension icon �
 ## How It Works
 
 ```
-X Bookmarks page
+Saved content page (X bookmarks or Reddit saved)
       │
       ▼
-Content script scrapes tweet text + metadata as you scroll
+Content script scrapes saved post text + metadata as you scroll
       │
       ▼
-Service worker stores bookmarks in chrome.storage.local
+Service worker stores saved items in chrome.storage.local
       │  (if semantic search enabled)
       ▼
-Embedding API converts tweet text → vectors, stored locally
+Embedding API converts saved text → vectors, stored locally
       │
       ▼
-Query → embed query → cosine similarity → top-K bookmarks
+Query → embed query → cosine similarity → top-K saved items
       │
       ▼
 LLM generates answer with [1][2][3] citations → side panel
 ```
 
-All storage is local (`chrome.storage.local`). API calls go directly from your browser to OpenRouter or OpenAI using your own key.
+Bookmark data is stored locally in `chrome.storage.local`. When you use chat or semantic search, request data is sent directly from your browser to OpenRouter or OpenAI using your own key. BookmarkBrain does not run its own backend service.
+
+See [PRIVACY.md](PRIVACY.md) for exact data flow and third-party processing details.
 
 ---
 
@@ -99,8 +103,8 @@ BookmarkBrain itself is free. You pay only for your own API usage:
 
 | Operation | Model | Approx cost |
 |---|---|---|
-| Embed 1000 tweets (one-time) | `google/gemini-embedding-001` | ~$0.00 (free tier) |
-| Embed 1000 tweets (one-time) | `openai/text-embedding-3-small` | ~$0.02 |
+| Embed 1000 saved items (one-time) | `google/gemini-embedding-001` | ~$0.00 (free tier) |
+| Embed 1000 saved items (one-time) | `openai/text-embedding-3-small` | ~$0.02 |
 | Chat query | `openai/gpt-4o-mini` via OpenRouter | ~$0.001 per query |
 
 ---
@@ -108,8 +112,8 @@ BookmarkBrain itself is free. You pay only for your own API usage:
 ## Limitations
 
 - Chrome desktop only (Manifest V3 side panel API)
-- Requires you to be logged in to X in the same browser profile
-- Scrapes visible DOM — if X changes their HTML structure, selectors may need updating
+- Requires you to be logged in to X and/or Reddit in the same browser profile
+- Scrapes visible DOM — if X or Reddit change their HTML structure, selectors may need updating
 - `chrome.storage.local` stores all data locally; no cross-device sync
 
 ---
@@ -121,13 +125,21 @@ Pull requests are welcome. For significant changes, open an issue first to discu
 1. Fork the repo
 2. Load the extension in developer mode
 3. Make your changes
-4. Test against a real X bookmarks page
+4. Test against a real X bookmarks page or Reddit saved page
 5. Open a PR with a clear description
+
+---
+
+## Support
+
+If BookmarkBrain is useful to you, you can support development here:
+
+- [Buy Me a Coffee](https://buymeacoffee.com/amandev)
 
 ### Project Structure
 
 ```
-twitter-extension/
+BookmarkBrain/
 ├── manifest.json                  # MV3 manifest
 ├── background/
 │   ├── service-worker.js          # Sync orchestration, RAG pipeline, storage
@@ -136,7 +148,7 @@ twitter-extension/
 │       ├── openrouter.js          # OpenRouter chat + embeddings
 │       └── openai.js              # OpenAI chat + embeddings
 ├── content/
-│   └── bookmarks-scraper.js       # DOM scraper injected on x.com/i/bookmarks
+│   └── bookmarks-scraper.js       # DOM scraper injected on supported saved pages
 ├── sidepanel/
 │   ├── sidepanel.html
 │   ├── sidepanel.css

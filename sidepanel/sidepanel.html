@@ -4,16 +4,22 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BookmarkBrain</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./sidepanel.css" />
   </head>
   <body>
     <main class="app">
       <header class="topbar glass">
         <div class="brand">
-          <img class="brand-mark" src="../bb.png" alt="BookmarkBrain" />
+          <img class="brand-mark" src="../assets/logo_48.png" alt="BookmarkBrain" />
           <div>
             <h1>BookmarkBrain</h1>
-            <p class="sub">Bookmark intelligence for X</p>
+            <p class="sub">Saved-content intelligence for X + Reddit</p>
           </div>
         </div>
         <button id="open-options" class="secondary">Settings</button>
@@ -34,19 +40,25 @@
             <strong id="sync-state-word">Idle</strong>
           </article>
         </div>
-        <p id="sync-status" class="sync-line" role="status" aria-live="polite">Checking status...</p>
-        <p id="embedding-progress" class="sync-line">Vectors: 0/0</p>
         <div class="row">
           <button id="start-sync">Start Sync</button>
           <button id="stop-sync" class="secondary">Stop</button>
           <button id="refresh-state" class="ghost">Refresh</button>
-          <button id="clear-data" class="danger">Clear Data</button>
         </div>
+        <details class="collapsible">
+          <summary>Sync details</summary>
+          <div class="collapsible-body">
+            <p id="sync-status" class="sync-line" role="status" aria-live="polite">Checking status...</p>
+            <p id="embedding-progress" class="sync-line">Vectors: 0/0</p>
+            <button id="clear-data" class="danger">Clear Data</button>
+          </div>
+        </details>
       </section>
 
       <section class="glass card chat">
         <div class="section-head">
           <h2>Ask</h2>
+          <span id="model-pill" class="model-pill">model</span>
           <span id="chat-mode" class="pill subtle">standby</span>
         </div>
 
@@ -60,32 +72,48 @@
             rows="3"
             required
           ></textarea>
-          <div class="quality-controls">
-            <label class="control">
-              <span>Style</span>
-              <select id="answer-style">
-                <option value="brief">Brief</option>
-                <option value="balanced">Balanced</option>
-                <option value="deep-dive">Deep-dive</option>
-              </select>
-            </label>
-            <label class="control">
-              <span>Max citations</span>
-              <input id="max-citations" type="number" min="1" max="12" step="1" value="5" />
-            </label>
-          </div>
           <button id="send-query" class="send-btn" type="submit">Ask BookmarkBrain</button>
-          <div class="prompt-toolbar">
-            <input
-              id="new-prompt-input"
-              class="prompt-input"
-              type="text"
-              maxlength="140"
-              placeholder="Add a saved prompt..."
-            />
-            <button id="add-prompt" class="ghost" type="button">Add</button>
-          </div>
-          <div id="quick-prompts" class="quick-prompts"></div>
+
+          <details class="collapsible">
+            <summary>Advanced settings</summary>
+            <div class="collapsible-body">
+              <div class="quality-controls">
+                <label class="control">
+                  <span>Style</span>
+                  <select id="answer-style">
+                    <option value="brief">Brief</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="deep-dive">Deep-dive</option>
+                  </select>
+                </label>
+                <label class="control">
+                  <span>Max citations</span>
+                  <input id="max-citations" type="number" min="1" max="12" step="1" value="12" />
+                </label>
+              </div>
+              <label class="quality-toggle">
+                <input id="include-top-opportunities-risks" type="checkbox" />
+                <span>Include Top 3 Opportunities and Top 3 Risks</span>
+              </label>
+            </div>
+          </details>
+
+          <details class="collapsible">
+            <summary>Saved prompts</summary>
+            <div class="collapsible-body">
+              <div class="prompt-toolbar">
+                <input
+                  id="new-prompt-input"
+                  class="prompt-input"
+                  type="text"
+                  maxlength="140"
+                  placeholder="Add a saved prompt..."
+                />
+                <button id="add-prompt" class="ghost" type="button">Add</button>
+              </div>
+              <div id="quick-prompts" class="quick-prompts"></div>
+            </div>
+          </details>
         </form>
 
         <div id="citations" class="citations"></div>
@@ -93,6 +121,17 @@
           <button id="export-markdown" class="ghost" type="button">Export Markdown</button>
           <button id="export-csv" class="ghost" type="button">Export CSV</button>
           <button id="share-answer" class="secondary" type="button">Share Answer</button>
+        </div>
+        <div class="support-row">
+          <span>Support BookmarkBrain</span>
+          <a
+            class="support-link"
+            href="https://buymeacoffee.com/amandev"
+            target="_blank"
+            rel="noreferrer noopener"
+          >
+            Buy Me a Coffee
+          </a>
         </div>
       </section>
     </main>

@@ -4,6 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>BookmarkBrain Settings</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./options.css" />
   </head>
   <body>
@@ -24,7 +30,7 @@
       <section class="card">
         <label class="toggle" for="auto-sync-enabled">
           <input id="auto-sync-enabled" type="checkbox" />
-          <span>Enable auto-sync when bookmarks tab is active</span>
+          <span>Enable auto-sync when a supported saved-items tab is active</span>
         </label>
         <label class="toggle" for="auto-scroll-during-sync">
           <input id="auto-scroll-during-sync" type="checkbox" />
@@ -42,7 +48,7 @@
         </label>
         <p class="muted">
           BookmarkBrain will auto-start and resume scraping whenever your active tab is
-          <code>x.com/i/bookmarks</code>.
+          <code>x.com/i/bookmarks</code> or <code>reddit.com/user/&lt;you&gt;/saved</code>.
         </p>
         <p class="muted">
           Semantic mode embeds bookmarks using your selected provider and API key. Disable to use
@@ -59,7 +65,11 @@
           <option value="deep-dive">Deep-dive</option>
         </select>
         <label for="max-citations">Max citations</label>
-        <input id="max-citations" type="number" min="1" max="12" step="1" />
+        <input id="max-citations" type="number" min="1" max="12" step="1" value="12" />
+        <label class="toggle" for="include-top-opportunities-risks">
+          <input id="include-top-opportunities-risks" type="checkbox" />
+          <span>Default to include Top 3 Opportunities and Top 3 Risks</span>
+        </label>
       </section>
 
       <section class="card" id="openrouter-settings">
@@ -121,6 +131,14 @@
       <section class="card actions">
         <button id="save-settings">Save Settings</button>
         <button id="clear-data" class="danger">Clear Indexed Data</button>
+        <a
+          class="support-link"
+          href="https://buymeacoffee.com/amandev"
+          target="_blank"
+          rel="noreferrer noopener"
+        >
+          Support via Buy Me a Coffee
+        </a>
         <p id="status" class="muted" role="status" aria-live="polite"></p>
       </section>
     </main>

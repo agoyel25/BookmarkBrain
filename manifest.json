@@ -1,28 +1,30 @@
 {
   "manifest_version": 3,
   "name": "BookmarkBrain",
-  "version": "0.1.0",
-  "description": "Chat with your X/Twitter bookmarks using AI.",
+  "version": "1.0.0",
+  "description": "Chat with your X/Twitter bookmarks and Reddit saved posts using AI.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "sidePanel", "scripting"],
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
+    "https://www.reddit.com/*",
+    "https://old.reddit.com/*",
     "https://openrouter.ai/*",
     "https://api.openai.com/*"
   ],
   "icons": {
-    "16": "bb.png",
-    "32": "bb.png",
-    "48": "bb.png",
-    "128": "bb.png"
+    "16": "assets/logo_16.png",
+    "32": "assets/logo_32.png",
+    "48": "assets/logo_48.png",
+    "128": "assets/logo_128.png"
   },
   "action": {
     "default_title": "BookmarkBrain",
     "default_icon": {
-      "16": "bb.png",
-      "32": "bb.png",
-      "48": "bb.png",
-      "128": "bb.png"
+      "16": "assets/logo_16.png",
+      "32": "assets/logo_32.png",
+      "48": "assets/logo_48.png",
+      "128": "assets/logo_128.png"
     }
   },
   "background": {
@@ -33,7 +35,9 @@
     {
       "matches": [
         "https://x.com/i/bookmarks*",
-        "https://twitter.com/i/bookmarks*"
+        "https://twitter.com/i/bookmarks*",
+        "https://www.reddit.com/user/*/saved*",
+        "https://old.reddit.com/user/*/saved*"
       ],
       "js": ["content/bookmarks-scraper.js"],
       "run_at": "document_idle"
@@ -42,5 +46,8 @@
   "side_panel": {
     "default_path": "sidepanel/sidepanel.html"
   },
-  "options_page": "options/options.html"
+  "options_page": "options/options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com"
+  }
 }

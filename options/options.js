@@ -1,7 +1,9 @@
 import {
   DEFAULT_ANSWER_STYLE,
+  DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS,
   DEFAULT_MAX_CITATIONS,
   normalizeAnswerStyle,
+  normalizeIncludeTopOpportunitiesRisks,
   normalizeMaxCitations
 } from "../shared/settings.js";
 
@@ -13,6 +15,7 @@ const elements = {
   embeddingSearchEnabled: document.getElementById("embedding-search-enabled"),
   answerStyle: document.getElementById("answer-style"),
   maxCitations: document.getElementById("max-citations"),
+  includeTopOpportunitiesRisks: document.getElementById("include-top-opportunities-risks"),
   openrouterSettings: document.getElementById("openrouter-settings"),
   openrouterChatModelList: document.getElementById("openrouter-chat-model-list"),
   openrouterModelsStatus: document.getElementById("openrouter-models-status"),
@@ -74,6 +77,10 @@ elements.saveSettings.addEventListener("click", async () => {
     maxCitations: normalizeMaxCitations(elements.maxCitations.value, {
       fallback: DEFAULT_MAX_CITATIONS
     }),
+    includeTopOpportunitiesRisks: normalizeIncludeTopOpportunitiesRisks(
+      elements.includeTopOpportunitiesRisks.checked,
+      DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS
+    ),
     openrouterChatModel: elements.openrouterChatModel.value.trim(),
     openrouterEmbeddingModel: elements.openrouterEmbeddingModel.value.trim(),
     openaiChatModel: elements.openaiChatModel.value.trim(),
@@ -148,6 +155,10 @@ async function init() {
     normalizeMaxCitations(settings.maxCitations, {
       fallback: DEFAULT_MAX_CITATIONS
     })
+  );
+  elements.includeTopOpportunitiesRisks.checked = normalizeIncludeTopOpportunitiesRisks(
+    settings.includeTopOpportunitiesRisks,
+    DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS
   );
   elements.openrouterApiKey.value = "";
   elements.openrouterChatModel.value = settings.openrouterChatModel || "openai/gpt-4o-mini";

@@ -5,7 +5,8 @@ export const DEFAULT_PROMPTS = [
 ];
 
 export const DEFAULT_ANSWER_STYLE = "balanced";
-export const DEFAULT_MAX_CITATIONS = 5;
+export const DEFAULT_MAX_CITATIONS = 12;
+export const DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS = false;
 export const MAX_CITATIONS = 12;
 export const MIN_CITATIONS = 1;
 export const MAX_SAVED_PROMPTS = 12;
@@ -30,6 +31,16 @@ export function normalizeMaxCitations(
     return fallback;
   }
   return Math.min(max, Math.max(min, parsed));
+}
+
+export function normalizeIncludeTopOpportunitiesRisks(
+  value,
+  fallback = DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS
+) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  return fallback;
 }
 
 export function normalizeSavedPrompts(

@@ -1,8 +1,10 @@
 import {
   DEFAULT_ANSWER_STYLE,
+  DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS,
   DEFAULT_MAX_CITATIONS,
   DEFAULT_PROMPTS,
   normalizeAnswerStyle,
+  normalizeIncludeTopOpportunitiesRisks,
   normalizeMaxCitations,
   normalizeSavedPrompts
 } from "../shared/settings.js";
@@ -14,6 +16,7 @@ const elements = {
   syncStateWord: document.getElementById("sync-state-word"),
   providerPill: document.getElementById("provider-pill"),
   chatMode: document.getElementById("chat-mode"),
+  modelPill: document.getElementById("model-pill"),
   startSync: document.getElementById("start-sync"),
   stopSync: document.getElementById("stop-sync"),
   refreshState: document.getElementById("refresh-state"),
@@ -22,6 +25,7 @@ const elements = {
   queryInput: document.getElementById("query-input"),
   answerStyle: document.getElementById("answer-style"),
   maxCitations: document.getElementById("max-citations"),
+  includeTopOpportunitiesRisks: document.getElementById("include-top-opportunities-risks"),
   newPromptInput: document.getElementById("new-prompt-input"),
   addPrompt: document.getElementById("add-prompt"),
   messages: document.getElementById("messages"),
@@ -102,6 +106,17 @@ elements.maxCitations.addEventListener("change", async () => {
   });
 });
 
+elements.includeTopOpportunitiesRisks.addEventListener("change", async () => {
+  if (isHydratingControls) {
+    return;
+  }
+  await persistSettings({
+    includeTopOpportunitiesRisks: normalizeIncludeTopOpportunitiesRisks(
+      elements.includeTopOpportunitiesRisks.checked
+    )
+  });
+});
+
 elements.addPrompt.addEventListener("click", async () => {
   const value = String(elements.newPromptInput.value || "").trim();
   if (!value) {
@@ -168,15 +183,21 @@ elements.chatForm.addEventListener("submit", async (event) => {
   elements.sendQuery.textContent = "Thinking...";
   setChatMode("working");
 
+  const thinkingNode = showThinkingIndicator();
+
   const response = await sendRuntimeMessage({
     type: "BOOKMARKBRAIN_CHAT_QUERY",
     query,
     options: {
       answerStyle: normalizeAnswerStyle(elements.answerStyle.value),
-      maxCitations: normalizeMaxCitations(elements.maxCitations.value)
+      maxCitations: normalizeMaxCitations(elements.maxCitations.value),
+      includeTopOpportunitiesRisks: normalizeIncludeTopOpportunitiesRisks(
+        elements.includeTopOpportunitiesRisks.checked
+      )
     }
   });
 
+  removeThinkingIndicator(thinkingNode);
   elements.sendQuery.disabled = false;
   elements.sendQuery.textContent = previousLabel;
 
@@ -263,10 +284,12 @@ async function refreshState() {
       ? ` · vec:${embeddingCount}`
       : "";
   elements.providerPill.textContent = `${provider} · ${autoFlag} · ${scrollFlag} · ${semanticFlag}${embedCount}`;
+  setModelPill(normalizedSettings);
 
   isHydratingControls = true;
   elements.answerStyle.value = normalizedSettings.answerStyle;
   elements.maxCitations.value = String(normalizedSettings.maxCitations);
+  elements.includeTopOpportunitiesRisks.checked = normalizedSettings.includeTopOpportunitiesRisks;
   isHydratingControls = false;
 
   savedPrompts = normalizedSettings.savedPrompts;
@@ -533,7 +556,7 @@ function renderEmptyState() {
   }
   appendMessage(
     "system",
-    "Ask about your saved tweets. Start sync on x.com/i/bookmarks first if this is your first run."
+    "Ask about your saved items. Start sync on x.com/i/bookmarks or reddit.com/user/<you>/saved first."
   );
 }
 
@@ -589,6 +612,36 @@ function formatCitationUrl(url) {
 
 function setChatMode(mode) {
   elements.chatMode.textContent = mode;
+}
+
+function setModelPill(settings) {
+  const provider = settings.provider || "openrouter";
+  let model = "";
+  if (provider === "openai") {
+    model = settings.openaiChatModel || "gpt-4o-mini";
+  } else {
+    model = settings.openrouterChatModel || "openai/gpt-4o-mini";
+  }
+  elements.modelPill.textContent = model;
+  elements.modelPill.title = `${provider}: ${model}`;
+}
+
+function showThinkingIndicator() {
+  const node = document.createElement("article");
+  node.className = "msg thinking";
+  const dots = document.createElement("div");
+  dots.className = "thinking-dots";
+  dots.innerHTML = "<span></span><span></span><span></span>";
+  node.appendChild(dots);
+  elements.messages.appendChild(node);
+  elements.messages.scrollTop = elements.messages.scrollHeight;
+  return node;
+}
+
+function removeThinkingIndicator(node) {
+  if (node && node.parentNode) {
+    node.remove();
+  }
 }
 
 function updateExportActions() {
@@ -736,10 +789,16 @@ function normalizeSettings(rawSettings) {
     maxCitations: normalizeMaxCitations(rawSettings.maxCitations, {
       fallback: DEFAULT_MAX_CITATIONS
     }),
+    includeTopOpportunitiesRisks: normalizeIncludeTopOpportunitiesRisks(
+      rawSettings.includeTopOpportunitiesRisks,
+      DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS
+    ),
     savedPrompts: normalizeSavedPrompts(rawSettings.savedPrompts, {
       fallback: DEFAULT_PROMPTS,
       allowEmpty: true
-    })
+    }),
+    openrouterChatModel: rawSettings.openrouterChatModel || "openai/gpt-4o-mini",
+    openaiChatModel: rawSettings.openaiChatModel || "gpt-4o-mini"
   };
 }
 

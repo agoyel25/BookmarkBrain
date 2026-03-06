@@ -1,9 +1,11 @@
 import { runChatCompletion, runEmbeddings } from "./providers/index.js";
 import {
   DEFAULT_ANSWER_STYLE,
+  DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS,
   DEFAULT_MAX_CITATIONS,
   DEFAULT_PROMPTS,
   normalizeAnswerStyle,
+  normalizeIncludeTopOpportunitiesRisks,
   normalizeMaxCitations,
   normalizeSavedPrompts
 } from "../shared/settings.js";
@@ -23,6 +25,7 @@ const DEFAULT_SETTINGS = {
   embeddingSearchEnabled: false,
   answerStyle: DEFAULT_ANSWER_STYLE,
   maxCitations: DEFAULT_MAX_CITATIONS,
+  includeTopOpportunitiesRisks: DEFAULT_INCLUDE_TOP_OPPORTUNITIES_RISKS,
   savedPrompts: [...DEFAULT_PROMPTS],
   openrouterApiKey: "",
   openrouterChatModel: "openai/gpt-4o-mini",
@@ -244,6 +247,10 @@ function normalizeSettings(input) {
     maxCitations: normalizeMaxCitations(merged.maxCitations, {
       fallback: DEFAULT_SETTINGS.maxCitations
     }),
+    includeTopOpportunitiesRisks: normalizeIncludeTopOpportunitiesRisks(
+      merged.includeTopOpportunitiesRisks,
+      DEFAULT_SETTINGS.includeTopOpportunitiesRisks
+    ),
     savedPrompts: normalizeSavedPrompts(merged.savedPrompts, {
       fallback: DEFAULT_SETTINGS.savedPrompts,
       allowEmpty: true
@@ -349,12 +356,13 @@ async function clearData() {
 }
 
 async function startSync() {
-  const tab = await getActiveBookmarksTab();
+  const tab = await getActiveSavedItemsTab();
   if (!tab?.id) {
-    await setSyncError("Open the X/Twitter bookmarks page in the active tab first.");
+    await setSyncError("Open an X/Twitter bookmarks page or Reddit saved page in the active tab first.");
     return {
       ok: false,
-      error: "Open https://x.com/i/bookmarks in your active tab first."
+      error:
+        "Open https://x.com/i/bookmarks or https://www.reddit.com/user/<username>/saved in your active tab first."
     };
   }
 
@@ -386,7 +394,7 @@ async function stopSync() {
   if (syncTabId) {
     await stopSyncOnTab(syncTabId);
   } else {
-    const tab = await getActiveBookmarksTab();
+    const tab = await getActiveSavedItemsTab();
     if (tab?.id) {
       await stopSyncOnTab(tab.id);
     }
@@ -435,7 +443,7 @@ async function startSyncOnTab(tabId, tabUrl, { autoManaged }) {
       });
       return {
         ok: false,
-        error: "Could not re-establish sync. Refresh bookmarks page and try again."
+        error: "Could not re-establish sync. Refresh the saved-items page and try again."
       };
     }
 
@@ -457,10 +465,10 @@ async function startSyncOnTab(tabId, tabUrl, { autoManaged }) {
   } catch (_error) {
     const recovered = await ensureContentScript(tabId, syncOptions);
     if (!recovered) {
-      await setSyncError("Could not reach content script on bookmarks page.");
+      await setSyncError("Could not reach content script on the saved-items page.");
       return {
         ok: false,
-        error: "Could not start sync. Refresh the bookmarks page and try again."
+        error: "Could not start sync. Refresh the saved-items page and try again."
       };
     }
   }
@@ -490,28 +498,30 @@ async function stopSyncOnTab(tabId) {
   }
 }
 
-async function getActiveBookmarksTab() {
+async function getActiveSavedItemsTab() {
   const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
   const tab = tabs[0];
   if (!tab?.url) {
     return null;
   }
 
-  if (!isBookmarksUrl(tab.url)) {
+  if (!isSupportedSavedUrl(tab.url)) {
     return null;
   }
 
   return tab;
 }
 
-function isBookmarksUrl(url) {
+function isSupportedSavedUrl(url) {
   if (!url) {
     return false;
   }
-  return (
-    url.startsWith("https://x.com/i/bookmarks") ||
-    url.startsWith("https://twitter.com/i/bookmarks")
-  );
+
+  if (url.startsWith("https://x.com/i/bookmarks") || url.startsWith("https://twitter.com/i/bookmarks")) {
+    return true;
+  }
+
+  return /^https:\/\/(?:www|old)\.reddit\.com\/(?:user|u)\/[^/]+\/saved\/?/i.test(url);
 }
 
 async function maybeRunAutoSyncForActiveTab() {
@@ -546,7 +556,7 @@ async function handleAutoSyncForTab(tab) {
     return;
   }
 
-  if (tab?.id && isBookmarksUrl(tab.url)) {
+  if (tab?.id && isSupportedSavedUrl(tab.url)) {
     await startSyncOnTab(tab.id, tab.url, { autoManaged: true });
     return;
   }
@@ -797,13 +807,19 @@ async function runChatQuery(query, queryOptions = {}) {
   if (!bookmarks.length) {
     return {
       ok: false,
-      error: "No indexed bookmarks yet. Run sync first on the bookmarks page."
+      error: "No indexed items yet. Run sync first on an X bookmarks or Reddit saved page."
     };
   }
 
   const settings = normalizeSettings(appSettings || DEFAULT_SETTINGS);
   const answerStyle = normalizeAnswerStyle(queryOptions?.answerStyle || settings.answerStyle);
   const maxCitations = normalizeMaxCitations(queryOptions?.maxCitations ?? settings.maxCitations);
+  const includeTopOpportunitiesRisks = normalizeIncludeTopOpportunitiesRisks(
+    Object.prototype.hasOwnProperty.call(queryOptions || {}, "includeTopOpportunitiesRisks")
+      ? queryOptions.includeTopOpportunitiesRisks
+      : settings.includeTopOpportunitiesRisks,
+    settings.includeTopOpportunitiesRisks
+  );
   const ranking = await rankBookmarksForQuery(cleanedQuery, bookmarks, settings, maxCitations);
   const ranked = ranking.items;
   const citations = ranked.map((item, index) => ({
@@ -826,7 +842,8 @@ async function runChatQuery(query, queryOptions = {}) {
 
   const messages = buildProviderMessages(cleanedQuery, ranked, {
     answerStyle,
-    maxCitations
+    maxCitations,
+    includeTopOpportunitiesRisks
   });
   try {
     const answer = await runChatCompletion({
@@ -1093,10 +1110,11 @@ function cosineSimilarity(a, b) {
 }
 
 function buildProviderMessages(query, ranked, options) {
+  const sourceHint = describeContextSources(ranked);
   const context = ranked
     .map(
       (item, index) =>
-        `[${index + 1}] ${item.tweet_url}\nAuthor: @${item.author_handle || "unknown"}\nText: ${
+        `[${index + 1}] ${item.tweet_url}\nAuthor: ${item.author_handle || "unknown"}\nText: ${
           item.tweet_text
         }`
     )
@@ -1105,28 +1123,72 @@ function buildProviderMessages(query, ranked, options) {
   return [
     {
       role: "system",
-      content: buildSystemInstruction(options)
+      content: buildSystemInstruction(options, sourceHint)
     },
     {
       role: "user",
-      content: `Question: ${query}\n\nBookmark context:\n${context}`
+      content:
+        `User question:\n${query}\n\n` +
+        `Context source:\n${sourceHint}\n\n` +
+        `Saved items context:\n${context}\n\n` +
+        "Task: analyze these saved items and return important takeaways, patterns, and actionable insights grounded in the provided context."
     }
   ];
 }
 
-function buildSystemInstruction(options = {}) {
+function buildSystemInstruction(options = {}, sourceHint = "mixed sources") {
   const answerStyle = normalizeAnswerStyle(options.answerStyle);
   const maxCitations = normalizeMaxCitations(options.maxCitations);
+  const includeTopOpportunitiesRisks = normalizeIncludeTopOpportunitiesRisks(
+    options.includeTopOpportunitiesRisks
+  );
+  const commonRules =
+    `You are BookmarkBrain, an expert saved-content key-takeaway specialist. ` +
+    `You analyze a user's saved posts from X/Twitter and/or Reddit to extract high-value insights. ` +
+    `Current context source: ${sourceHint}. ` +
+    "Use only the provided saved items context. Do not invent facts. " +
+    "If context is insufficient, say exactly what is missing. " +
+    `Cite claims with [1], [2], etc, and use at most ${maxCitations} citations.`;
+  const opportunityRiskRule = includeTopOpportunitiesRisks
+    ? " Always include sections titled 'Top 3 Opportunities' and 'Top 3 Risks'. If there are fewer than 3 strong points, include what is available and state the gap."
+    : "";
 
   if (answerStyle === "brief") {
-    return `You are BookmarkBrain. Answer only from provided bookmark context. Keep response short: 1 short summary paragraph + up to 3 bullets. Cite claims with [1], [2], etc and use at most ${maxCitations} citations.`;
+    return `${commonRules}${opportunityRiskRule} Format: 1 short summary paragraph, then up to 3 key takeaways, then up to 2 action bullets.`;
   }
 
   if (answerStyle === "deep-dive") {
-    return `You are BookmarkBrain. Answer only from provided bookmark context. Provide a thorough response with sections: Summary, Key Insights, Actionable Steps. Cite claims with [1], [2], etc and use at most ${maxCitations} citations.`;
+    return `${commonRules}${opportunityRiskRule} Format with sections: Summary, Key Takeaways, Patterns and Themes, Actionable Steps, Risks or Gaps.`;
   }
 
-  return `You are BookmarkBrain. Answer only from provided bookmark context. Start with a short summary (2-4 sentences), then concise bullet takeaways. Cite claims with [1], [2], etc and use at most ${maxCitations} citations.`;
+  return `${commonRules}${opportunityRiskRule} Format with sections: Summary (2-4 sentences), Key Takeaways (bullets), Actionable Next Steps (bullets).`;
+}
+
+function describeContextSources(ranked) {
+  let hasX = false;
+  let hasReddit = false;
+
+  for (const item of ranked || []) {
+    const url = String(item?.tweet_url || "");
+    if (/https:\/\/(?:x\.com|twitter\.com)\//i.test(url)) {
+      hasX = true;
+      continue;
+    }
+    if (/https:\/\/(?:www\.|old\.)?reddit\.com\//i.test(url)) {
+      hasReddit = true;
+    }
+  }
+
+  if (hasX && hasReddit) {
+    return "mixed: X/Twitter and Reddit";
+  }
+  if (hasX) {
+    return "X/Twitter";
+  }
+  if (hasReddit) {
+    return "Reddit";
+  }
+  return "unknown or mixed";
 }
 
 function rankBookmarks(query, bookmarks, limit = 5) {
