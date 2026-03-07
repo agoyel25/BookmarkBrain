@@ -33,6 +33,9 @@ const DEFAULT_SETTINGS = {
   openaiApiKey: "",
   openaiChatModel: "gpt-4o-mini",
   openaiEmbeddingModel: "text-embedding-3-small",
+  googleApiKey: "",
+  googleChatModel: "gemini-3.1-flash-lite-preview",
+  googleEmbeddingModel: "gemini-embedding-001",
   favoriteOpenrouterModels: [],
   favoriteOpenaiModels: []
 };
@@ -217,8 +220,10 @@ function sanitizeSettingsForUI(settings) {
     ...settings,
     openrouterApiKey: settings.openrouterApiKey ? "********" : "",
     openaiApiKey: settings.openaiApiKey ? "********" : "",
+    googleApiKey: settings.googleApiKey ? "********" : "",
     hasOpenrouterApiKey: Boolean(settings.openrouterApiKey),
-    hasOpenaiApiKey: Boolean(settings.openaiApiKey)
+    hasOpenaiApiKey: Boolean(settings.openaiApiKey),
+    hasGoogleApiKey: Boolean(settings.googleApiKey)
   };
 }
 
@@ -227,8 +232,10 @@ function sanitizeSettingsForOptions(settings) {
     ...settings,
     openrouterApiKey: "",
     openaiApiKey: "",
+    googleApiKey: "",
     hasOpenrouterApiKey: Boolean(settings.openrouterApiKey),
-    hasOpenaiApiKey: Boolean(settings.openaiApiKey)
+    hasOpenaiApiKey: Boolean(settings.openaiApiKey),
+    hasGoogleApiKey: Boolean(settings.googleApiKey)
   };
 }
 
@@ -337,6 +344,10 @@ function shouldTriggerEmbeddingBackfill(current, merged, partialSettings) {
 
   if (merged.provider === "openai") {
     return Object.prototype.hasOwnProperty.call(partialSettings, "openaiEmbeddingModel");
+  }
+
+  if (merged.provider === "google") {
+    return Object.prototype.hasOwnProperty.call(partialSettings, "googleEmbeddingModel");
   }
 
   return false;
@@ -900,6 +911,9 @@ function getProviderApiKey(settings, provider) {
   if (provider === "openai") {
     return settings.openaiApiKey || "";
   }
+  if (provider === "google") {
+    return settings.googleApiKey || "";
+  }
   return "";
 }
 
@@ -910,6 +924,9 @@ function getProviderChatModel(settings, provider) {
   if (provider === "openai") {
     return settings.openaiChatModel || DEFAULT_SETTINGS.openaiChatModel;
   }
+  if (provider === "google") {
+    return settings.googleChatModel || DEFAULT_SETTINGS.googleChatModel;
+  }
   return DEFAULT_SETTINGS.openrouterChatModel;
 }
 
@@ -919,6 +936,9 @@ function getProviderEmbeddingModel(settings, provider) {
   }
   if (provider === "openai") {
     return settings.openaiEmbeddingModel || DEFAULT_SETTINGS.openaiEmbeddingModel;
+  }
+  if (provider === "google") {
+    return settings.googleEmbeddingModel || DEFAULT_SETTINGS.googleEmbeddingModel;
   }
   return DEFAULT_SETTINGS.openrouterEmbeddingModel;
 }
@@ -989,7 +1009,8 @@ async function upsertEmbeddingsForTweets(tweets, settings) {
       provider,
       apiKey,
       model,
-      texts: batch.map((entry) => entry.input)
+      texts: batch.map((entry) => entry.input),
+      taskType: "RETRIEVAL_DOCUMENT"
     });
 
     const now = new Date().toISOString();
@@ -1046,7 +1067,8 @@ async function rankBookmarksByEmbeddings(query, bookmarks, settings, limit) {
     provider,
     apiKey,
     model,
-    texts: [query]
+    texts: [query],
+    taskType: "RETRIEVAL_QUERY"
   });
 
   if (!Array.isArray(queryVector) || queryVector.length === 0) {

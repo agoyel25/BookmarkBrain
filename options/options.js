@@ -21,6 +21,7 @@ const elements = {
   openrouterChatModelList: document.getElementById("openrouter-chat-model-list"),
   openrouterModelsStatus: document.getElementById("openrouter-models-status"),
   openaiSettings: document.getElementById("openai-settings"),
+  googleSettings: document.getElementById("google-settings"),
   openrouterApiKey: document.getElementById("openrouter-api-key"),
   clearOpenrouterKey: document.getElementById("clear-openrouter-key"),
   openrouterKeyStatus: document.getElementById("openrouter-key-status"),
@@ -35,6 +36,11 @@ const elements = {
   openaiEmbeddingModel: document.getElementById("openai-embedding-model"),
   saveOpenaiFav: document.getElementById("save-openai-fav"),
   favModelsOpenai: document.getElementById("openai-fav-models"),
+  googleApiKey: document.getElementById("google-api-key"),
+  clearGoogleKey: document.getElementById("clear-google-key"),
+  googleKeyStatus: document.getElementById("google-key-status"),
+  googleChatModel: document.getElementById("google-chat-model"),
+  googleEmbeddingModel: document.getElementById("google-embedding-model"),
   saveSettings: document.getElementById("save-settings"),
   clearData: document.getElementById("clear-data"),
   status: document.getElementById("status")
@@ -104,16 +110,22 @@ elements.saveSettings.addEventListener("click", async () => {
     openrouterChatModel: elements.openrouterChatModel.value.trim(),
     openrouterEmbeddingModel: elements.openrouterEmbeddingModel.value.trim(),
     openaiChatModel: elements.openaiChatModel.value.trim(),
-    openaiEmbeddingModel: elements.openaiEmbeddingModel.value.trim()
+    openaiEmbeddingModel: elements.openaiEmbeddingModel.value.trim(),
+    googleChatModel: elements.googleChatModel.value.trim(),
+    googleEmbeddingModel: elements.googleEmbeddingModel.value.trim()
   };
 
   const openrouterApiKey = elements.openrouterApiKey.value.trim();
   const openaiApiKey = elements.openaiApiKey.value.trim();
+  const googleApiKey = elements.googleApiKey.value.trim();
   if (openrouterApiKey) {
     settings.openrouterApiKey = openrouterApiKey;
   }
   if (openaiApiKey) {
     settings.openaiApiKey = openaiApiKey;
+  }
+  if (googleApiKey) {
+    settings.googleApiKey = googleApiKey;
   }
 
   const response = await sendRuntimeMessage({
@@ -128,9 +140,11 @@ elements.saveSettings.addEventListener("click", async () => {
 
   elements.openrouterApiKey.value = "";
   elements.openaiApiKey.value = "";
+  elements.googleApiKey.value = "";
   const merged = response?.data?.settings || settings;
   updateKeyStatus(Boolean(merged.hasOpenrouterApiKey || merged.openrouterApiKey), "openrouter");
   updateKeyStatus(Boolean(merged.hasOpenaiApiKey || merged.openaiApiKey), "openai");
+  updateKeyStatus(Boolean(merged.hasGoogleApiKey || merged.googleApiKey), "google");
   setStatus("Settings saved.");
 });
 
@@ -155,6 +169,10 @@ elements.clearOpenrouterKey.addEventListener("click", async () => {
 
 elements.clearOpenaiKey.addEventListener("click", async () => {
   await clearProviderKey("openai");
+});
+
+elements.clearGoogleKey.addEventListener("click", async () => {
+  await clearProviderKey("google");
 });
 
 async function init() {
@@ -188,8 +206,20 @@ async function init() {
   elements.openaiChatModel.value = settings.openaiChatModel || "gpt-4o-mini";
   elements.openaiEmbeddingModel.value =
     settings.openaiEmbeddingModel || "text-embedding-3-small";
+  elements.googleApiKey.value = "";
+  elements.googleChatModel.value =
+    settings.googleChatModel || "gemini-3.1-flash-lite-preview";
+  elements.googleEmbeddingModel.value =
+    settings.googleEmbeddingModel || "gemini-embedding-001";
+  if (!elements.googleChatModel.value) {
+    elements.googleChatModel.value = "gemini-3.1-flash-lite-preview";
+  }
+  if (!elements.googleEmbeddingModel.value) {
+    elements.googleEmbeddingModel.value = "gemini-embedding-001";
+  }
   updateKeyStatus(Boolean(settings.hasOpenrouterApiKey), "openrouter");
   updateKeyStatus(Boolean(settings.hasOpenaiApiKey), "openai");
+  updateKeyStatus(Boolean(settings.hasGoogleApiKey), "google");
 
   favoriteOpenrouterModels = Array.isArray(settings.favoriteOpenrouterModels)
     ? settings.favoriteOpenrouterModels
@@ -235,6 +265,7 @@ async function fetchOpenRouterModels() {
 function updateProviderVisibility(provider) {
   elements.openrouterSettings.style.display = provider === "openrouter" ? "grid" : "none";
   elements.openaiSettings.style.display = provider === "openai" ? "grid" : "none";
+  elements.googleSettings.style.display = provider === "google" ? "grid" : "none";
 }
 
 function setStatus(text, isError = false) {
@@ -251,15 +282,24 @@ function updateKeyStatus(hasKey, provider) {
     elements.clearOpenrouterKey.textContent = hasKey ? "Clear OpenRouter Key" : "No key to clear";
     return;
   }
-  elements.openaiKeyStatus.textContent = hasKey
+  if (provider === "openai") {
+    elements.openaiKeyStatus.textContent = hasKey
+      ? "API key saved. Leave blank to keep current key."
+      : "No API key saved.";
+    elements.clearOpenaiKey.disabled = !hasKey;
+    elements.clearOpenaiKey.textContent = hasKey ? "Clear OpenAI Key" : "No key to clear";
+    return;
+  }
+  elements.googleKeyStatus.textContent = hasKey
     ? "API key saved. Leave blank to keep current key."
     : "No API key saved.";
-  elements.clearOpenaiKey.disabled = !hasKey;
-  elements.clearOpenaiKey.textContent = hasKey ? "Clear OpenAI Key" : "No key to clear";
+  elements.clearGoogleKey.disabled = !hasKey;
+  elements.clearGoogleKey.textContent = hasKey ? "Clear Google Key" : "No key to clear";
 }
 
 async function clearProviderKey(provider) {
-  const providerLabel = provider === "openrouter" ? "OpenRouter" : "OpenAI";
+  const providerLabel =
+    provider === "openrouter" ? "OpenRouter" : provider === "openai" ? "OpenAI" : "Google";
   const confirmed = confirm(`Clear stored ${providerLabel} API key?`);
   if (!confirmed) {
     return;
@@ -268,7 +308,9 @@ async function clearProviderKey(provider) {
   const settings =
     provider === "openrouter"
       ? { openrouterApiKey: "" }
-      : { openaiApiKey: "" };
+      : provider === "openai"
+        ? { openaiApiKey: "" }
+        : { googleApiKey: "" };
 
   const response = await sendRuntimeMessage({
     type: "BOOKMARKBRAIN_SAVE_SETTINGS",
@@ -283,9 +325,12 @@ async function clearProviderKey(provider) {
   if (provider === "openrouter") {
     elements.openrouterApiKey.value = "";
     updateKeyStatus(false, "openrouter");
-  } else {
+  } else if (provider === "openai") {
     elements.openaiApiKey.value = "";
     updateKeyStatus(false, "openai");
+  } else {
+    elements.googleApiKey.value = "";
+    updateKeyStatus(false, "google");
   }
 
   setStatus(`${providerLabel} API key cleared.`);

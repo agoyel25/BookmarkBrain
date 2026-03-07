@@ -704,6 +704,8 @@ function setModelPill(settings) {
   let model = "";
   if (provider === "openai") {
     model = settings.openaiChatModel || "gpt-4o-mini";
+  } else if (provider === "google") {
+    model = settings.googleChatModel || "gemini-3.1-flash-lite-preview";
   } else {
     model = settings.openrouterChatModel || "openai/gpt-4o-mini";
   }
@@ -883,7 +885,8 @@ function normalizeSettings(rawSettings) {
       allowEmpty: true
     }),
     openrouterChatModel: rawSettings.openrouterChatModel || "openai/gpt-4o-mini",
-    openaiChatModel: rawSettings.openaiChatModel || "gpt-4o-mini"
+    openaiChatModel: rawSettings.openaiChatModel || "gpt-4o-mini",
+    googleChatModel: rawSettings.googleChatModel || "gemini-3.1-flash-lite-preview"
   };
 }
 
