@@ -816,6 +816,14 @@ textarea:focus {
   min-width: 0;
 }
 
+.support-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
 .support-link {
   display: inline-flex;
   align-items: center;
@@ -837,6 +845,17 @@ textarea:focus {
 
 .support-link:hover {
   background: var(--bg-1);
+  color: var(--text);
+}
+
+.support-link-accent {
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-color: rgba(16, 185, 129, 0.22);
+}
+
+.support-link.support-link-accent:hover {
+  background: var(--accent-hover);
   color: var(--text);
 }
 
