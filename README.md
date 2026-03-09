@@ -22,7 +22,13 @@ Your saved content is a graveyard — no search, no recall, no value. BookmarkBr
 
 ---
 
-## Install (Developer Mode)
+## Install
+
+Install BookmarkBrain from the Chrome Web Store:
+
+[BookmarkBrain on the Chrome Web Store](https://chromewebstore.google.com/detail/bookmarkbrain/akdanakbhljjkieodocegjhabdijmdjd)
+
+### Developer Mode
 
 1. Download or clone this repo
 2. Open `chrome://extensions` in Chrome
