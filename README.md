@@ -8,6 +8,23 @@ Your saved content is a graveyard — no search, no recall, no value. BookmarkBr
 
 ---
 
+## Screenshots
+
+![BookmarkBrain Hero](assets/screenshots/promo-hero.png)
+
+<table>
+  <tr>
+    <td><img src="assets/screenshots/sync-in-action.png" alt="Sync in Action" /></td>
+    <td><img src="assets/screenshots/reddit-saved.png" alt="Reddit Saved Posts" /></td>
+  </tr>
+  <tr>
+    <td><img src="assets/screenshots/byok.png" alt="Bring Your Own Key — Settings" /></td>
+    <td><img src="assets/screenshots/social-media-card.png" alt="Feature Overview" /></td>
+  </tr>
+</table>
+
+---
+
 ## Features
 
 - **Semantic search** — embeddings-powered retrieval finds conceptually relevant bookmarks even when exact words don't match
