@@ -44,9 +44,15 @@ const DEFAULT_SYNC_STATE = {
   isSyncing: false,
   syncTabId: null,
   autoManaged: false,
+  sessionId: null,
+  phase: "idle",
+  sourceUrl: null,
   lastSyncAt: null,
   lastIngestAt: null,
   lastHeartbeatAt: null,
+  lastBatchAt: null,
+  lastBatchAdded: 0,
+  lastBatchUpdated: 0,
   lastError: null,
   totalCaptured: 0
 };
@@ -161,9 +167,9 @@ async function handleMessage(message, sender) {
     case "BOOKMARKBRAIN_STOP_SYNC":
       return stopSync();
     case "BOOKMARKBRAIN_SYNC_HEARTBEAT":
-      return handleSyncHeartbeat(sender);
+      return handleSyncHeartbeat(sender, message.sessionId);
     case "BOOKMARKBRAIN_INGEST_TWEETS":
-      return ingestTweets(message.tweets, sender);
+      return ingestTweets(message.tweets, sender, message.sessionId);
     case "BOOKMARKBRAIN_GET_SETTINGS":
       return getSettings();
     case "BOOKMARKBRAIN_SAVE_SETTINGS":
@@ -211,8 +217,27 @@ function normalizeSyncState(input) {
     ...merged,
     isSyncing: Boolean(merged.isSyncing),
     autoManaged: Boolean(merged.autoManaged),
-    syncTabId: Number.isInteger(merged.syncTabId) ? merged.syncTabId : null
+    syncTabId: Number.isInteger(merged.syncTabId) ? merged.syncTabId : null,
+    sessionId: typeof merged.sessionId === "string" && merged.sessionId ? merged.sessionId : null,
+    phase: normalizeSyncPhase(merged.phase),
+    sourceUrl: typeof merged.sourceUrl === "string" && merged.sourceUrl ? merged.sourceUrl : null,
+    lastBatchAdded: Number.isFinite(merged.lastBatchAdded) ? merged.lastBatchAdded : 0,
+    lastBatchUpdated: Number.isFinite(merged.lastBatchUpdated) ? merged.lastBatchUpdated : 0,
+    totalCaptured: Number.isFinite(merged.totalCaptured) ? merged.totalCaptured : 0
   };
+}
+
+function normalizeSyncPhase(value) {
+  if (
+    value === "starting" ||
+    value === "syncing" ||
+    value === "auto-scrolling" ||
+    value === "stopping" ||
+    value === "error"
+  ) {
+    return value;
+  }
+  return "idle";
 }
 
 function sanitizeSettingsForUI(settings) {
@@ -402,6 +427,10 @@ async function stopSync() {
   const current = normalizeSyncState(syncState || DEFAULT_SYNC_STATE);
   const syncTabId = current.syncTabId;
 
+  await patchSyncState({
+    phase: current.isSyncing ? "stopping" : "idle"
+  });
+
   if (syncTabId) {
     await stopSyncOnTab(syncTabId);
   } else {
@@ -415,7 +444,8 @@ async function stopSync() {
     isSyncing: false,
     syncTabId: null,
     autoManaged: false,
-    lastHeartbeatAt: null
+    lastHeartbeatAt: null,
+    phase: "idle"
   });
 
   return { ok: true };
@@ -428,7 +458,12 @@ async function startSyncOnTab(tabId, tabUrl, { autoManaged }) {
   ]);
   const current = normalizeSyncState(syncState || DEFAULT_SYNC_STATE);
   const settings = normalizeSettings(appSettings || DEFAULT_SETTINGS);
+  const sessionId =
+    current.isSyncing && current.syncTabId === tabId && current.sessionId
+      ? current.sessionId
+      : createSyncSessionId();
   const syncOptions = {
+    sessionId,
     autoScrollEnabled: Boolean(settings.autoScrollDuringSync),
     scrollSpeed: settings.scrollSpeed || "normal"
   };
@@ -450,6 +485,7 @@ async function startSyncOnTab(tabId, tabUrl, { autoManaged }) {
         syncTabId: null,
         autoManaged: false,
         lastHeartbeatAt: null,
+        phase: "error",
         lastError: "Sync session became stale and was reset."
       });
       return {
@@ -461,12 +497,32 @@ async function startSyncOnTab(tabId, tabUrl, { autoManaged }) {
     if (current.autoManaged !== autoManaged) {
       await patchSyncState({ autoManaged });
     }
+    await patchSyncState({
+      sessionId,
+      phase: resolveActiveSyncPhase(settings)
+    });
     return { ok: true };
   }
 
   if (current.isSyncing && current.syncTabId && current.syncTabId !== tabId) {
     await stopSyncOnTab(current.syncTabId);
   }
+
+  const startedAt = new Date().toISOString();
+  await patchSyncState({
+    isSyncing: true,
+    syncTabId: tabId,
+    autoManaged,
+    sessionId,
+    phase: "starting",
+    lastSyncAt: startedAt,
+    lastHeartbeatAt: startedAt,
+    lastError: null,
+    sourceUrl: tabUrl || null,
+    lastBatchAt: null,
+    lastBatchAdded: 0,
+    lastBatchUpdated: 0
+  });
 
   try {
     await chrome.tabs.sendMessage(tabId, {
@@ -488,7 +544,9 @@ async function startSyncOnTab(tabId, tabUrl, { autoManaged }) {
     isSyncing: true,
     syncTabId: tabId,
     autoManaged,
-    lastSyncAt: new Date().toISOString(),
+    sessionId,
+    phase: resolveActiveSyncPhase(settings),
+    lastSyncAt: startedAt,
     lastHeartbeatAt: new Date().toISOString(),
     lastError: null,
     sourceUrl: tabUrl || null
@@ -582,12 +640,16 @@ async function stopAutoManagedSyncIfNeeded() {
     return;
   }
 
+  await patchSyncState({
+    phase: "stopping"
+  });
   await stopSyncOnTab(current.syncTabId);
   await patchSyncState({
     isSyncing: false,
     syncTabId: null,
     autoManaged: false,
-    lastHeartbeatAt: null
+    lastHeartbeatAt: null,
+    phase: "idle"
   });
 }
 
@@ -610,16 +672,33 @@ async function setSyncError(message) {
     syncTabId: null,
     autoManaged: false,
     lastHeartbeatAt: null,
+    phase: "error",
     lastError: message
   });
 }
 
-async function handleSyncHeartbeat(sender) {
+async function handleSyncHeartbeat(sender, sessionId) {
+  const { syncState, appSettings } = await chrome.storage.local.get([
+    STORAGE_KEYS.SYNC_STATE,
+    STORAGE_KEYS.SETTINGS
+  ]);
+  const current = normalizeSyncState(syncState || DEFAULT_SYNC_STATE);
+  const settings = normalizeSettings(appSettings || DEFAULT_SETTINGS);
+
+  if (sessionId && current.sessionId && sessionId !== current.sessionId) {
+    return { ok: true, data: { ignored: true } };
+  }
+
+  if (!current.isSyncing) {
+    return { ok: true, data: { ignored: true } };
+  }
+
   const now = new Date().toISOString();
   await patchSyncState({
     isSyncing: true,
-    syncTabId: sender?.tab?.id || null,
+    syncTabId: sender?.tab?.id || current.syncTabId || null,
     lastHeartbeatAt: now,
+    phase: resolveActiveSyncPhase(settings),
     lastError: null
   });
   return { ok: true };
@@ -636,6 +715,7 @@ async function reconcileSyncStateOnWake() {
     isSyncing: false,
     syncTabId: null,
     autoManaged: false,
+    phase: "error",
     lastError: "Recovered stale sync session after extension wake."
   });
 }
@@ -660,6 +740,7 @@ async function reconcileSyncStateIfStale(syncState) {
     isSyncing: false,
     syncTabId: null,
     autoManaged: false,
+    phase: current.lastError ? "error" : "idle",
     lastError: current.lastError || "Recovered stale sync state."
   };
 
@@ -689,7 +770,7 @@ function hasUnlimitedStoragePermission() {
   return permissions.includes("unlimitedStorage");
 }
 
-async function ingestTweets(tweets = [], sender) {
+async function ingestTweets(tweets = [], sender, sessionId) {
   if (!Array.isArray(tweets) || tweets.length === 0) {
     return { ok: true, data: { added: 0, updated: 0, total: await getBookmarkCount() } };
   }
@@ -703,6 +784,8 @@ async function ingestTweets(tweets = [], sender) {
   const currentSyncState = normalizeSyncState(syncState || DEFAULT_SYNC_STATE);
   const settings = normalizeSettings(appSettings || DEFAULT_SETTINGS);
   const now = new Date().toISOString();
+  const sessionMatches =
+    !sessionId || !currentSyncState.sessionId || sessionId === currentSyncState.sessionId;
   let added = 0;
   let updated = 0;
   const changedTweets = [];
@@ -739,15 +822,25 @@ async function ingestTweets(tweets = [], sender) {
     [STORAGE_KEYS.BOOKMARKS]: nextMap
   });
 
-  await patchSyncState({
-    isSyncing: true,
-    syncTabId: sender?.tab?.id || currentSyncState.syncTabId || null,
-    autoManaged: Boolean(currentSyncState.autoManaged),
-    lastIngestAt: now,
-    lastHeartbeatAt: now,
-    totalCaptured: Object.keys(nextMap).length,
-    lastError: null
-  });
+  if (sessionMatches) {
+    await patchSyncState({
+      isSyncing: currentSyncState.isSyncing,
+      syncTabId: currentSyncState.isSyncing
+        ? sender?.tab?.id || currentSyncState.syncTabId || null
+        : currentSyncState.syncTabId,
+      autoManaged: Boolean(currentSyncState.autoManaged),
+      lastIngestAt: now,
+      lastHeartbeatAt: currentSyncState.isSyncing ? now : currentSyncState.lastHeartbeatAt,
+      lastBatchAt: now,
+      lastBatchAdded: added,
+      lastBatchUpdated: updated,
+      totalCaptured: Object.keys(nextMap).length,
+      phase: currentSyncState.isSyncing
+        ? resolveActiveSyncPhase(settings)
+        : currentSyncState.phase,
+      lastError: null
+    });
+  }
 
   if (settings.embeddingSearchEnabled && changedTweets.length > 0) {
     void enqueueEmbeddingJob(async () => {
@@ -796,6 +889,18 @@ function extractTweetId(tweetUrl) {
 function extractAuthorFromTweetUrl(tweetUrl) {
   const match = tweetUrl.match(/(?:x\.com|twitter\.com)\/([^/]+)\/status\/\d+/);
   return match?.[1] || null;
+}
+
+function createSyncSessionId() {
+  if (typeof crypto?.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `sync-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function resolveActiveSyncPhase(settings) {
+  return settings.autoScrollDuringSync ? "auto-scrolling" : "syncing";
 }
 
 async function getBookmarkCount() {

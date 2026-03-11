@@ -13,7 +13,10 @@ const elements = {
   syncStatus: document.getElementById("sync-status"),
   embeddingProgress: document.getElementById("embedding-progress"),
   bookmarkCountNumber: document.getElementById("bookmark-count-number"),
+  syncIndicator: document.getElementById("sync-indicator"),
   syncStateWord: document.getElementById("sync-state-word"),
+  syncPhaseLine: document.getElementById("sync-phase-line"),
+  syncHelperText: document.getElementById("sync-helper-text"),
   providerPill: document.getElementById("provider-pill"),
   chatMode: document.getElementById("chat-mode"),
   modelPill: document.getElementById("model-pill"),
@@ -45,31 +48,47 @@ let lastExchange = null;
 let savedPrompts = [...DEFAULT_PROMPTS];
 let isHydratingControls = false;
 let chatHistory = [];
+let syncActionPending = null;
+let latestStateSnapshot = null;
+let refreshStatePromise = null;
+let refreshStateScheduled = null;
+
+const SYNC_ACTIVITY_RECENT_MS = 4_000;
+const SYNC_WAITING_MS = 8_000;
 
 elements.startSync.addEventListener("click", async () => {
+  syncActionPending = "start";
+  renderLatestSyncState();
   setStatus("Starting sync...");
   const response = await sendRuntimeMessage({ type: "BOOKMARKBRAIN_START_SYNC" });
+  syncActionPending = null;
   if (!response?.ok) {
     setStatus(response?.error || "Could not start sync.");
+    renderLatestSyncState();
     return;
   }
 
-  setStatus("Sync started.");
-  await refreshState();
+  setStatus("Sync started. Scanning visible items...");
+  await refreshState({ force: true });
 });
 
 elements.stopSync.addEventListener("click", async () => {
+  syncActionPending = "stop";
+  renderLatestSyncState();
+  setStatus("Stopping sync...");
   const response = await sendRuntimeMessage({ type: "BOOKMARKBRAIN_STOP_SYNC" });
+  syncActionPending = null;
   if (!response?.ok) {
     setStatus(response?.error || "Could not stop sync.");
+    renderLatestSyncState();
     return;
   }
 
   setStatus("Sync stopped.");
-  await refreshState();
+  await refreshState({ force: true });
 });
 
-elements.refreshState.addEventListener("click", refreshState);
+elements.refreshState.addEventListener("click", () => refreshState({ force: true }));
 
 elements.clearData.addEventListener("click", async () => {
   if (!confirm("Delete all synced bookmarks and embeddings? This cannot be undone.")) {
@@ -125,6 +144,15 @@ chrome.storage.onChanged.addListener((changes) => {
     if (newTheme && newTheme !== "emerald-dark") {
       document.body.classList.add(`theme-${newTheme}`);
     }
+  }
+
+  if (
+    changes.appSettings ||
+    changes.bookmarksById ||
+    changes.syncState ||
+    changes.embeddingsByTweetId
+  ) {
+    scheduleRefreshState();
   }
 });
 
@@ -305,18 +333,59 @@ elements.shareAnswer.addEventListener("click", async () => {
   }
 });
 
-async function refreshState() {
-  const response = await sendRuntimeMessage({ type: "BOOKMARKBRAIN_GET_STATE" });
-  if (!response?.ok) {
-    setStatus(response?.error || "Failed to load state.");
+async function refreshState({ force = false } = {}) {
+  if (!force && refreshStatePromise) {
+    return refreshStatePromise;
+  }
+
+  refreshStatePromise = (async () => {
+    const response = await sendRuntimeMessage({ type: "BOOKMARKBRAIN_GET_STATE" });
+    if (!response?.ok) {
+      setStatus(response?.error || "Failed to load state.");
+      return;
+    }
+
+    latestStateSnapshot = response.data || null;
+    renderLatestSyncState();
+  })().finally(() => {
+    refreshStatePromise = null;
+  });
+
+  return refreshStatePromise;
+}
+
+function scheduleRefreshState() {
+  if (refreshStateScheduled) {
+    clearTimeout(refreshStateScheduled);
+  }
+
+  refreshStateScheduled = setTimeout(() => {
+    refreshStateScheduled = null;
+    void refreshState();
+  }, 150);
+}
+
+function renderLatestSyncState() {
+  if (!latestStateSnapshot) {
+    updateSyncButtons({ isSyncing: false });
     return;
   }
 
-  const { syncState, bookmarkCount, embeddingCount, settings, storage } = response.data;
+  const { syncState, bookmarkCount, embeddingCount, settings, storage } = latestStateSnapshot;
   const normalizedSettings = normalizeSettings(settings || {});
+  const normalizedSyncState = normalizeSyncState(syncState || {});
+  const presentation = deriveSyncPresentation({
+    syncState: normalizedSyncState,
+    bookmarkCount,
+    embeddingCount,
+    settings: normalizedSettings
+  });
 
   elements.bookmarkCountNumber.textContent = String(bookmarkCount || 0);
-  elements.syncStateWord.textContent = syncState?.isSyncing ? "Syncing" : "Idle";
+  elements.syncStateWord.textContent = presentation.label;
+  elements.syncPhaseLine.textContent = presentation.phaseLine;
+  elements.syncHelperText.textContent = presentation.helperText;
+  elements.syncIndicator.className = `sync-indicator ${presentation.indicatorClass}`;
 
   const provider = normalizedSettings.provider || "unknown";
   const autoFlag = normalizedSettings.autoSyncEnabled ? "auto" : "manual";
@@ -338,7 +407,8 @@ async function refreshState() {
   savedPrompts = normalizedSettings.savedPrompts;
   renderSavedPrompts();
 
-  setStatus(formatSyncStatus(syncState, storage));
+  updateSyncButtons(normalizedSyncState);
+  setStatus(formatSyncStatus(normalizedSyncState, storage));
   setEmbeddingProgress({
     embeddingCount,
     bookmarkCount,
@@ -356,6 +426,138 @@ async function persistSettings(partial) {
 
 function setStatus(text) {
   elements.syncStatus.textContent = text;
+}
+
+function updateSyncButtons(syncState = {}) {
+  const isSyncing = Boolean(syncState.isSyncing);
+  const isStopping = syncActionPending === "stop" || syncState.phase === "stopping";
+  const isStarting = syncActionPending === "start" || syncState.phase === "starting";
+
+  elements.startSync.disabled = isSyncing || Boolean(syncActionPending);
+  elements.stopSync.disabled = (!isSyncing && !isStopping) || Boolean(syncActionPending);
+  elements.refreshState.disabled = Boolean(syncActionPending);
+
+  elements.startSync.classList.toggle("is-loading", isStarting);
+  elements.stopSync.classList.toggle("is-loading", isStopping);
+
+  elements.startSync.textContent = isStarting ? "Starting..." : isSyncing ? "Sync Running" : "Start Sync";
+  elements.stopSync.textContent = isStopping ? "Stopping..." : "Stop";
+}
+
+function deriveSyncPresentation({ syncState, bookmarkCount, embeddingCount, settings }) {
+  const count = Number.isFinite(bookmarkCount) ? bookmarkCount : 0;
+  const vectors = Number.isFinite(embeddingCount) ? embeddingCount : 0;
+  const phase = syncState.phase || "idle";
+  const now = Date.now();
+  const lastActivity =
+    toTimestamp(syncState.lastIngestAt) ||
+    toTimestamp(syncState.lastHeartbeatAt) ||
+    toTimestamp(syncState.lastSyncAt);
+  const msSinceActivity = Number.isFinite(lastActivity) ? now - lastActivity : Number.POSITIVE_INFINITY;
+  const lastBatchText =
+    syncState.lastBatchAdded || syncState.lastBatchUpdated
+      ? `Last batch +${syncState.lastBatchAdded || 0}${syncState.lastBatchUpdated ? ` · ${syncState.lastBatchUpdated} refreshed` : ""}.`
+      : "";
+
+  if (syncActionPending === "start") {
+    return {
+      label: "Starting",
+      phaseLine: "Connecting to the saved-items page",
+      helperText: "BookmarkBrain is checking the page and preparing the first scan.",
+      indicatorClass: "sync-working"
+    };
+  }
+
+  if (syncActionPending === "stop" || phase === "stopping") {
+    return {
+      label: "Stopping",
+      phaseLine: "Finalizing the current sync session",
+      helperText: "Any visible queued items are being flushed before the panel returns to idle.",
+      indicatorClass: "sync-working"
+    };
+  }
+
+  if (syncState.lastError && !syncState.isSyncing) {
+    return {
+      label: "Error",
+      phaseLine: "Sync needs attention",
+      helperText: syncState.lastError,
+      indicatorClass: "sync-error"
+    };
+  }
+
+  if (syncState.isSyncing) {
+    const waitingForMoreItems =
+      Number.isFinite(msSinceActivity) && msSinceActivity > SYNC_WAITING_MS;
+    const collectingNow =
+      Number.isFinite(msSinceActivity) && msSinceActivity <= SYNC_ACTIVITY_RECENT_MS;
+
+    if (phase === "starting") {
+      return {
+        label: "Starting",
+        phaseLine: "Scanning visible saved items",
+        helperText: settings.autoScrollDuringSync
+          ? "Auto-scroll will keep loading more items as the page grows."
+          : "BookmarkBrain will index whatever the page has already loaded.",
+        indicatorClass: "sync-working"
+      };
+    }
+
+    if (waitingForMoreItems) {
+      return {
+        label: "Waiting",
+        phaseLine: settings.autoScrollDuringSync
+          ? "Waiting for more saved items to load"
+          : "Waiting for you to scroll for more items",
+        helperText: settings.autoScrollDuringSync
+          ? "Auto-scroll is on. BookmarkBrain is nudging the page until more results appear."
+          : "Auto-scroll is off. Scroll down on the saved-items page to load and index more items.",
+        indicatorClass: "sync-working"
+      };
+    }
+
+    if (phase === "auto-scrolling") {
+      return {
+        label: "Syncing",
+        phaseLine: collectingNow
+          ? "Auto-scrolling and saving visible items"
+          : "Auto-scrolling through your saved feed",
+        helperText:
+          lastBatchText ||
+          `Indexed ${count} items so far. BookmarkBrain will keep loading more until the page runs out.`,
+        indicatorClass: "sync-working"
+      };
+    }
+
+    return {
+      label: "Syncing",
+      phaseLine: collectingNow ? "Capturing the items currently on the page" : "Scanning visible saved items",
+      helperText:
+        lastBatchText ||
+        "Scroll down to load more items, or turn on auto-scroll in Settings for hands-free syncing.",
+      indicatorClass: "sync-working"
+    };
+  }
+
+  if (count > 0) {
+    return {
+      label: "Idle",
+      phaseLine: `${count} items ready`,
+      helperText:
+        settings.embeddingSearchEnabled && vectors < count
+          ? `Bookmarks are ready while vectors finish indexing (${vectors}/${count}).`
+          : "Sync is complete. You can ask questions now or run sync again later.",
+      indicatorClass: "sync-idle"
+    };
+  }
+
+  return {
+    label: "Idle",
+    phaseLine: "No saved items indexed yet",
+    helperText:
+      "Open your X bookmarks or Reddit saved posts, then start sync. If auto-scroll is off, only loaded items are indexed.",
+    indicatorClass: "sync-idle"
+  };
 }
 
 function setEmbeddingProgress({ embeddingCount, bookmarkCount, semanticEnabled }) {
@@ -384,11 +586,18 @@ function formatSyncStatus(syncState, storage) {
   const parts = [];
   const modeText = syncState?.autoManaged ? "Mode: auto-sync" : "Mode: manual";
   parts.push(modeText);
+  parts.push(`Phase: ${syncState?.phase || "idle"}`);
 
   if (syncState?.lastIngestAt) {
     parts.push(`Last ingest: ${formatTime(syncState.lastIngestAt)}`);
   } else {
     parts.push("No ingest yet");
+  }
+
+  if (syncState?.lastBatchAt) {
+    const added = Number(syncState.lastBatchAdded || 0);
+    const updated = Number(syncState.lastBatchUpdated || 0);
+    parts.push(`Last batch: +${added}${updated ? ` / ${updated} refreshed` : ""}`);
   }
 
   if (syncState?.lastError) {
@@ -866,6 +1075,39 @@ function timestampToken() {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
 
+function toTimestamp(value) {
+  if (!value) {
+    return Number.NaN;
+  }
+
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? Number.NaN : timestamp;
+}
+
+function normalizeSyncState(rawSyncState) {
+  return {
+    isSyncing: Boolean(rawSyncState.isSyncing),
+    autoManaged: Boolean(rawSyncState.autoManaged),
+    phase:
+      rawSyncState.phase === "starting" ||
+      rawSyncState.phase === "syncing" ||
+      rawSyncState.phase === "auto-scrolling" ||
+      rawSyncState.phase === "stopping" ||
+      rawSyncState.phase === "error"
+        ? rawSyncState.phase
+        : "idle",
+    lastSyncAt: rawSyncState.lastSyncAt || null,
+    lastIngestAt: rawSyncState.lastIngestAt || null,
+    lastHeartbeatAt: rawSyncState.lastHeartbeatAt || null,
+    lastBatchAt: rawSyncState.lastBatchAt || null,
+    lastBatchAdded: Number.isFinite(rawSyncState.lastBatchAdded) ? rawSyncState.lastBatchAdded : 0,
+    lastBatchUpdated: Number.isFinite(rawSyncState.lastBatchUpdated)
+      ? rawSyncState.lastBatchUpdated
+      : 0,
+    lastError: rawSyncState.lastError || null
+  };
+}
+
 function normalizeSettings(rawSettings) {
   return {
     provider: rawSettings.provider || "openrouter",
@@ -910,4 +1152,8 @@ restoreChatHistory().then((restored) => {
   if (!restored) renderEmptyState();
 });
 renderSavedPrompts();
-refreshState();
+updateSyncButtons({ isSyncing: false, phase: "idle" });
+setInterval(() => {
+  renderLatestSyncState();
+}, 2_000);
+refreshState({ force: true });

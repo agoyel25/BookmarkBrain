@@ -12,6 +12,7 @@ if (window.__bookmarkBrainContentLoaded) {
 
     const state = {
       isSyncing: false,
+      sessionId: null,
       autoScrollEnabled: false,
       scrollSpeed: "normal",
       observer: null,
@@ -71,6 +72,7 @@ if (window.__bookmarkBrainContentLoaded) {
         return;
       }
 
+      state.sessionId = typeof options.sessionId === "string" && options.sessionId ? options.sessionId : null;
       state.autoScrollEnabled = Boolean(options.autoScrollEnabled);
       state.scrollSpeed = options.scrollSpeed || "normal";
 
@@ -190,7 +192,8 @@ if (window.__bookmarkBrainContentLoaded) {
         }
 
         void sendMessage({
-          type: "BOOKMARKBRAIN_SYNC_HEARTBEAT"
+          type: "BOOKMARKBRAIN_SYNC_HEARTBEAT",
+          sessionId: state.sessionId
         }).catch(() => {
           // Ignore transient heartbeat failures.
         });
@@ -642,6 +645,7 @@ if (window.__bookmarkBrainContentLoaded) {
       try {
         const response = await sendMessage({
           type: "BOOKMARKBRAIN_INGEST_TWEETS",
+          sessionId: state.sessionId,
           tweets: batch
         });
 

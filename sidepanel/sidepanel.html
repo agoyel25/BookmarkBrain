@@ -44,7 +44,11 @@
           </article>
           <article class="metric">
             <p>Status</p>
-            <strong id="sync-state-word">Idle</strong>
+            <strong class="status-value">
+              <span id="sync-indicator" class="sync-indicator" aria-hidden="true"></span>
+              <span id="sync-state-word">Idle</span>
+            </strong>
+            <span id="sync-phase-line" class="metric-note">Ready to sync</span>
           </article>
         </div>
         <div class="row">
@@ -52,9 +56,8 @@
           <button id="stop-sync" class="secondary">Stop</button>
           <button id="refresh-state" class="ghost">Refresh</button>
         </div>
-        <p class="sync-tip">
-          Tip: open your X bookmarks or Reddit saved tab and keep scrolling so more saved items load
-          and get indexed. If auto-scroll is off, BookmarkBrain only syncs what the page has loaded.
+        <p id="sync-helper-text" class="sync-tip" aria-live="polite">
+          Open your X bookmarks or Reddit saved tab, then start sync to pull saved items into BookmarkBrain.
         </p>
         <details class="collapsible">
           <summary>Sync details</summary>
