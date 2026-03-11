@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BookmarkBrain",
-  "version": "1.0.1",
+  "version": "1.1.1",
   "description": "Chat with your X/Twitter bookmarks and Reddit saved posts using AI.",
   "permissions": ["storage", "unlimitedStorage", "activeTab", "sidePanel", "scripting"],
   "host_permissions": [
